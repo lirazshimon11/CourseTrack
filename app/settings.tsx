@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius, FontSize } from '../constants/theme';
 import { useCourses } from '../hooks/useCourses';
 import { supabase } from '../lib/supabase';
@@ -62,7 +63,7 @@ const SettingsScreen = () => {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backIcon}>‹</Text>
+          <Ionicons name="arrow-forward" size={24} color={Colors.primaryLight} />
         </TouchableOpacity>
         <Text style={styles.title}>הגדרות</Text>
         <View style={{ width: 40 }} />
@@ -117,7 +118,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
-  backBtn: { transform: [{ scaleX: -1 }], padding: Spacing.xs },
+  backBtn: { padding: Spacing.xs },
   backIcon: { fontSize: 28, color: Colors.primaryLight },
   title: {
     fontSize: FontSize.xl,

@@ -1,65 +1,65 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { Session, AttendanceStatus, SessionType } from '../types';
-import { groupSessionsByWeek } from '../lib/dateUtils';
 
-export function useSessions(courseId: string, type?: SessionType) {
+export const useSessions = (courseId: string | undefined, type: SessionType) => {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchSessions = useCallback(async () => {
+    if (!courseId) {
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
-    let query = supabase
+    const { data, error } = await supabase
       .from('sessions')
       .select('*')
       .eq('course_id', courseId)
-      .order('date', { ascending: true })
-      .order('start_time', { ascending: true });
+      .eq('type', type)
+      .order('session_number', { ascending: true });
 
-    if (type) query = query.eq('type', type);
-
-    const { data, error } = await query;
-    if (!error && data) setSessions(data);
+    if (error) {
+      console.error('Error fetching sessions:', error);
+    } else if (data) {
+      setSessions(data);
+    }
     setLoading(false);
   }, [courseId, type]);
 
-  useEffect(() => { fetchSessions(); }, [fetchSessions]);
+  useEffect(() => {
+    fetchSessions();
+  }, [fetchSessions]);
 
-  const updateSession = async (sessionId: string, updates: Partial<Session>) => {
-    const { data, error } = await supabase
+  const updateAttendance = async (sessionId: string, attendance: AttendanceStatus) => {
+    setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, attendance } : s));
+    const { error } = await supabase
       .from('sessions')
-      .update(updates)
-      .eq('id', sessionId)
-      .select()
-      .single();
+      .update({ attendance })
+      .eq('id', sessionId);
 
-    if (!error && data) {
-      setSessions(prev => prev.map(s => s.id === sessionId ? data : s));
+    if (error) {
+      fetchSessions();
+      return { error };
     }
-    return { error };
+    return { success: true };
   };
 
-  const updateAttendance = (sessionId: string, attendance: AttendanceStatus) =>
-    updateSession(sessionId, { attendance });
+  const updateNotes = async (sessionId: string, notes: string) => {
+    const now = new Date().toISOString();
+    setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, notes, updated_at: now } : s));
+    const { error } = await supabase
+      .from('sessions')
+      .update({ notes, updated_at: now })
+      .eq('id', sessionId);
 
-  const updateNotes = (sessionId: string, notes: string) =>
-    updateSession(sessionId, { notes });
-
-  const grouped = groupSessionsByWeek(sessions);
-
-  const attended = sessions.filter(s => s.attendance === 'attended');
-  const missed = sessions.filter(s => s.attendance === 'missed');
-  const unmarked = sessions.filter(s => s.attendance === null);
-
-  return {
-    sessions,
-    grouped,
-    attended,
-    missed,
-    unmarked,
-    loading,
-    updateAttendance,
-    updateNotes,
-    refetch: fetchSessions,
+    if (error) {
+      fetchSessions();
+      return { error };
+    }
+    return { success: true };
   };
-}
+
+  return { sessions, loading, updateAttendance, updateNotes, refresh: fetchSessions };
+};

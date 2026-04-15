@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius, FontSize } from '../../constants/theme';
 import { useSessions } from '../../hooks/useSessions';
 import { useCourses } from '../../hooks/useCourses';
@@ -35,6 +36,7 @@ const CourseScreen = () => {
 
   const grouped = useMemo(() => groupSessionsByWeek(filteredSessions), [filteredSessions]);
 
+  const allCount = sessions.length;
   const attendedCount = sessions.filter(s => s.attendance === 'attended').length;
   const missedCount = sessions.filter(s => s.attendance === 'missed').length;
 
@@ -53,106 +55,105 @@ const CourseScreen = () => {
     }
   };
 
-  const semesterColor =
-    course?.semester === 'א' ? Colors.lectureColor :
-    course?.semester === 'ב' ? Colors.exerciseColor : Colors.accent;
+  const semesterColor = course?.color || Colors.primary;
 
   const TABS: { key: TabType; label: string }[] = [
-    { key: 'lecture',  label: 'הרצאות' },
+    { key: 'lecture', label: 'הרצאות' },
     { key: 'exercise', label: 'תרגולים' },
   ];
 
   const FILTERS: { key: FilterType; label: string; count?: number }[] = [
-    { key: 'all',      label: 'הכל' },
-    { key: 'attended', label: 'נצפו',    count: attendedCount },
-    { key: 'missed',   label: 'לא נצפו', count: missedCount },
+    { key: 'attended', label: 'נצפו', count: attendedCount },
+    { key: 'all', label: 'הכל', count: allCount },
+    { key: 'missed', label: 'לא נצפו', count: missedCount },
   ];
 
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <Text style={styles.backIcon}>‹</Text>
-          </TouchableOpacity>
-          <View style={styles.headerTitle}>
-            <Text style={styles.courseName} numberOfLines={1}>{course?.name ?? '...'}</Text>
-            {course && (
-              <View style={[styles.semBadge, { backgroundColor: semesterColor + '22', borderColor: semesterColor + '55' }]}>
-                <Text style={[styles.semBadgeText, { color: semesterColor }]}>סמסטר {course.semester}'</Text>
-              </View>
-            )}
-          </View>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <Ionicons name="arrow-forward" size={24} color={Colors.primaryLight} />
+        </TouchableOpacity>
+        <View style={styles.headerTitle}>
+          <Text style={styles.courseName} numberOfLines={1}>{course?.name ?? '...'}</Text>
+          {course && (
+            <View style={[styles.semBadge, { backgroundColor: semesterColor + '22', borderColor: semesterColor + '55' }]}>
+              <Text style={[styles.semBadgeText, { color: semesterColor }]}>סמסטר {course.semester}'</Text>
+            </View>
+          )}
         </View>
+      </View>
 
-        {/* Tabs: הרצאות / תרגולים */}
-        <View style={styles.tabRow}>
-          {TABS.map(tab => (
-            <TouchableOpacity
-              key={tab.key}
-              style={[styles.tab, activeTab === tab.key && styles.tabActive]}
-              onPress={() => { setActiveTab(tab.key); setActiveFilter('all'); }}
-            >
-              <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]}>
-                {tab.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* Filter chips */}
-        <View style={styles.filterRow}>
-          {FILTERS.map(f => (
-            <TouchableOpacity
-              key={f.key}
-              style={[styles.filterChip, activeFilter === f.key && styles.filterChipActive]}
-              onPress={() => setActiveFilter(f.key)}
-            >
-              <Text style={[styles.filterText, activeFilter === f.key && styles.filterTextActive]}>
-                {f.label}{f.count !== undefined ? ` (${f.count})` : ''}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* Content */}
-        {loading ? (
-          <View style={styles.center}>
-            <ActivityIndicator color={Colors.primary} size="large" />
-          </View>
-        ) : grouped.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyIcon}>{activeTab === 'lecture' ? '🎓' : '📚'}</Text>
-            <Text style={styles.emptyTitle}>
-              {activeFilter !== 'all'
-                ? `אין ${activeFilter === 'attended' ? 'נצפות' : 'לא נצפות'} עדיין`
-                : `אין ${activeTab === 'lecture' ? 'הרצאות' : 'תרגולים'} מוגדרים`}
+      {/* Tabs: הרצאות / תרגולים */}
+      <View style={styles.tabRow}>
+        {TABS.map(tab => (
+          <TouchableOpacity
+            key={tab.key}
+            style={[styles.tab, activeTab === tab.key && { borderColor: semesterColor, backgroundColor: semesterColor + '15' }]}
+            onPress={() => { setActiveTab(tab.key); setActiveFilter('all'); }}
+          >
+            <Text style={[styles.tabText, activeTab === tab.key && { color: semesterColor, fontWeight: '700' }]}>
+              {tab.label}
             </Text>
-          </View>
-        ) : (
-          <FlatList
-            data={grouped}
-            keyExtractor={item => String(item.weekNumber)}
-            renderItem={({ item }) => (
-              <WeekSection
-                weekNumber={item.weekNumber}
-                sessions={item.sessions}
-                onSessionPress={setSelectedSession}
-              />
-            )}
-            contentContainerStyle={styles.list}
-            showsVerticalScrollIndicator={false}
-          />
-        )}
+          </TouchableOpacity>
+        ))}
+      </View>
 
-        {/* Session detail bottom sheet */}
-        <SessionDetailSheet
-          session={selectedSession}
-          onClose={() => setSelectedSession(null)}
-          onAttendanceChange={handleAttendanceChange}
-          onNotesChange={handleNotesChange}
+      {/* Filter chips */}
+      <View style={styles.filterRow}>
+        {FILTERS.map(f => (
+          <TouchableOpacity
+            key={f.key}
+            style={[styles.filterChip, activeFilter === f.key && { borderColor: semesterColor, backgroundColor: semesterColor + '15' }]}
+            onPress={() => setActiveFilter(f.key)}
+          >
+            <Text style={[styles.filterText, activeFilter === f.key && { color: semesterColor }]}>
+              {f.label}{f.count !== undefined ? ` (${f.count})` : ''}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {/* Content */}
+      {loading ? (
+        <View style={styles.center}>
+          <ActivityIndicator color={semesterColor} size="large" />
+        </View>
+      ) : grouped.length === 0 ? (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyIcon}>{activeTab === 'lecture' ? '🎓' : '📚'}</Text>
+          <Text style={styles.emptyTitle}>
+            {activeFilter !== 'all'
+              ? `אין ${activeFilter === 'attended' ? 'נצפות' : 'לא נצפות'} עדיין`
+              : `אין ${activeTab === 'lecture' ? 'הרצאות' : 'תרגולים'} מוגדרים`}
+          </Text>
+        </View>
+      ) : (
+        <FlatList
+          data={grouped}
+          extraData={sessions}
+          keyExtractor={item => String(item.weekNumber)}
+          renderItem={({ item }) => (
+            <WeekSection
+              weekNumber={item.weekNumber}
+              sessions={item.sessions}
+              onSessionPress={setSelectedSession}
+              onStatusChange={handleAttendanceChange}
+            />
+          )}
+          contentContainerStyle={styles.list}
+          showsVerticalScrollIndicator={false}
         />
-      </SafeAreaView>
+      )}
+
+      {/* Session detail bottom sheet */}
+      <SessionDetailSheet
+        session={selectedSession}
+        onClose={() => setSelectedSession(null)}
+        onNotesChange={handleNotesChange}
+      />
+    </SafeAreaView>
   );
 };
 
@@ -169,7 +170,6 @@ const styles = StyleSheet.create({
   },
   backBtn: {
     padding: Spacing.xs,
-    transform: [{ scaleX: -1 }],
   },
   backIcon: {
     fontSize: 28,
@@ -212,8 +212,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   tabActive: {
-    backgroundColor: Colors.primary + '33',
-    borderColor: Colors.primary,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
   },
   tabText: {
     fontSize: FontSize.md,
@@ -221,11 +220,11 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
   tabTextActive: {
-    color: Colors.primaryLight,
     fontFamily: 'Heebo_700Bold',
   },
   filterRow: {
     flexDirection: 'row',
+    justifyContent: 'center',
     paddingHorizontal: Spacing.md,
     paddingTop: Spacing.sm,
     paddingBottom: Spacing.sm,
@@ -240,8 +239,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
   },
   filterChipActive: {
-    backgroundColor: Colors.primaryLight + '22',
-    borderColor: Colors.primaryLight,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
   },
   filterText: {
     fontSize: FontSize.sm,

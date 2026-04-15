@@ -1,55 +1,69 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Pressable } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Colors, Spacing, Radius, FontSize } from '../constants/theme';
 import { Course } from '../types';
 
 interface CourseCardProps {
   course: Course;
   onPress: () => void;
-  onLongPress: () => void;
+  onLongPress: (course: Course, x: number, y: number) => void;
+  dragTrigger: () => void;
 }
 
-export function CourseCard({ course, onPress, onLongPress }: CourseCardProps) {
-  const semesterColor =
-    course.semester === 'א' ? '#7C3AED' :
-    course.semester === 'ב' ? '#0EA5E9' : '#F59E0B';
+export function CourseCard({ course, onPress, onLongPress, dragTrigger }: CourseCardProps) {
+  const semesterColor = course.color || '#3B82F6';
 
   return (
-    <Pressable
-      onPress={onPress}
-      onLongPress={onLongPress}
-      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
-    >
-      <View style={[styles.accentBar, { backgroundColor: semesterColor }]} />
-      <View style={styles.content}>
-        <Text style={styles.name}>{course.name}</Text>
-        <View style={[styles.semesterBadge, { backgroundColor: semesterColor + '22', borderColor: semesterColor + '55' }]}>
-          <Text style={[styles.semesterText, { color: semesterColor }]}>סמסטר {course.semester}'</Text>
-        </View>
+    <View style={styles.container}>
+      <View style={styles.card}>
+        <TouchableOpacity
+          style={[styles.accentBar, { backgroundColor: semesterColor }]}
+          onLongPress={dragTrigger}
+          delayLongPress={100}
+        />
+        <TouchableOpacity
+          activeOpacity={0.7}
+          delayPressIn={100}
+          onPress={onPress}
+          onLongPress={(e) => {
+            onLongPress(course, e.nativeEvent.pageX, e.nativeEvent.pageY);
+          }}
+          style={styles.cardBody}
+        >
+          <View style={styles.content}>
+            <Text style={styles.name}>{course.name}</Text>
+            <View style={[styles.semesterBadge, { backgroundColor: semesterColor + '22', borderColor: semesterColor + '55' }]}>
+              <Text style={[styles.semesterText, { color: semesterColor }]}>סמסטר {course.semester}'</Text>
+            </View>
+          </View>
+        </TouchableOpacity>
       </View>
-      <Text style={styles.arrow}>›</Text>
-    </Pressable>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    marginHorizontal: Spacing.md,
+    marginBottom: Spacing.sm,
+  },
   card: {
     backgroundColor: Colors.card,
     borderRadius: Radius.lg,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
-    marginHorizontal: Spacing.md,
-    marginBottom: Spacing.sm,
     flexDirection: 'row',
     alignItems: 'center',
     overflow: 'hidden',
+    height: 70, // Fixed height for reliable drag calculations
   },
-  cardPressed: {
-    opacity: 0.75,
-    transform: [{ scale: 0.98 }],
+  cardBody: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   accentBar: {
-    width: 4,
+    width: 12,
     alignSelf: 'stretch',
   },
   content: {
@@ -60,7 +74,7 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   name: {
-    fontSize: FontSize.lg,
+    fontSize: FontSize.md,
     fontFamily: 'Heebo_600SemiBold',
     color: Colors.text,
     flex: 1,
@@ -75,10 +89,5 @@ const styles = StyleSheet.create({
   semesterText: {
     fontSize: FontSize.xs,
     fontFamily: 'Heebo_500Medium',
-  },
-  arrow: {
-    fontSize: 24,
-    color: Colors.textMuted,
-    paddingRight: Spacing.md,
   },
 });

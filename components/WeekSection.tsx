@@ -1,16 +1,17 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Colors, Spacing, Radius, FontSize } from '../constants/theme';
-import { Session } from '../types';
+import { Session, AttendanceStatus } from '../types';
 import { SessionItem } from './SessionItem';
 
 interface WeekSectionProps {
-  weekNumber: number;
+  weekNumber: string;
   sessions: Session[];
   onSessionPress: (session: Session) => void;
+  onStatusChange: (sessionId: string, status: AttendanceStatus) => void;
 }
 
-export function WeekSection({ weekNumber, sessions, onSessionPress }: WeekSectionProps) {
+export function WeekSection({ weekNumber, sessions, onSessionPress, onStatusChange }: WeekSectionProps) {
   return (
     <View style={styles.container}>
       <View style={styles.weekHeader}>
@@ -23,6 +24,7 @@ export function WeekSection({ weekNumber, sessions, onSessionPress }: WeekSectio
           key={session.id}
           session={session}
           onPress={() => onSessionPress(session)}
+          onStatusChange={(status) => onStatusChange(session.id, status)}
         />
       ))}
     </View>

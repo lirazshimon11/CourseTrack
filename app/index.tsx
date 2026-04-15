@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
-  Alert, ActivityIndicator,
+  Alert, ActivityIndicator, ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -11,44 +11,73 @@ import { useAcademicYear } from '../hooks/useAcademicYear';
 import { CourseCard } from '../components/CourseCard';
 import { CreateCourseModal } from '../components/CreateCourseModal';
 import { AcademicYearModal } from '../components/AcademicYearModal';
-import { Semester, ScheduleSlot } from '../types';
+import { CourseActionMenu } from '../components/CourseActionMenu';
+import { SuccessToast } from '../components/SuccessToast';
+import { ConfirmModal } from '../components/ConfirmModal';
+import { JSReorderList } from '../components/JSReorderList';
+import { Semester, ScheduleSlot, Course } from '../types';
 
 const HomeScreen = () => {
   const router = useRouter();
-  const { courses, loading, createCourse, deleteCourse } = useCourses();
+  const { courses, loading, createCourse, deleteCourse, updateCourse, reorderCourses, moveCourse } = useCourses();
   const { academicYear, saveYear } = useAcademicYear();
+  const [isDragging, setIsDragging] = useState(false);
 
   const [showCreate, setShowCreate] = useState(false);
   const [showYearModal, setShowYearModal] = useState(false);
+  const [courseToEdit, setCourseToEdit] = useState<Course | null>(null);
+  const [longPressedCourse, setLongPressedCourse] = useState<Course | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{ x: number, y: number } | null>(null);
+  const [toast, setToast] = useState<{ visible: boolean, message: string }>({ visible: false, message: '' });
+  const [deleteConfirm, setDeleteConfirm] = useState<{ visible: boolean, courseId: string }>({ visible: false, courseId: '' });
 
-  const handleCreateCourse = async (
+  const handleSaveCourse = async (
     name: string,
     semester: Semester,
+    color: string,
     lectureSlots: Omit<ScheduleSlot, 'id' | 'course_id'>[],
     exerciseSlots: Omit<ScheduleSlot, 'id' | 'course_id'>[]
   ) => {
+    if (courseToEdit) {
+      const res = await updateCourse(courseToEdit.id, name, semester, color, lectureSlots, exerciseSlots);
+      if (res.success) {
+        setToast({ visible: true, message: 'השינויים נשמרו בהצלחה' });
+      }
+      return res;
+    }
+
     if (!academicYear) {
-      Alert.alert('שגיאה', 'יש להגדיר שנה אקדמית תחילה');
+      setDeleteConfirm({ visible: true, courseId: 'YEAR_SETUP' });
       return { error: 'no academic year' };
     }
-    return await createCourse(name, semester, academicYear.id, lectureSlots, exerciseSlots, academicYear);
+    const res = await createCourse(name, semester, color, academicYear.id, lectureSlots, exerciseSlots, academicYear);
+    if (res.success) {
+      setToast({ visible: true, message: 'הקורס נוצר בהצלחה' });
+    }
+    return res;
   };
 
-  const handleLongPress = (courseId: string, courseName: string) => {
-    Alert.alert(
-      'מחיקת קורס',
-      `האם למחוק את הקורס "${courseName}"?\nפעולה זו תמחק גם את כל המפגשים.`,
-      [
-        { text: 'ביטול', style: 'cancel' },
-        {
-          text: 'מחק', style: 'destructive',
-          onPress: async () => {
-            const { error } = await deleteCourse(courseId);
-            if (error) Alert.alert('שגיאה', 'מחיקה נכשלה');
-          },
-        },
-      ]
-    );
+  const handleLongPress = (course: Course, x: number, y: number) => {
+    setLongPressedCourse(course);
+    setMenuPosition({ x, y });
+  };
+
+  const handleEditCourse = (course: Course) => {
+    setCourseToEdit(course);
+    setShowCreate(true);
+  };
+
+  const confirmDelete = (courseId: string) => {
+    setDeleteConfirm({ visible: true, courseId });
+  };
+
+  const handleDelete = async () => {
+    const courseId = deleteConfirm.courseId;
+    setDeleteConfirm({ visible: false, courseId: '' });
+    const res = await deleteCourse(courseId);
+    if (res.success) {
+      setToast({ visible: true, message: 'הקורס נמחק' });
+    }
   };
 
   const yearLabel = academicYear?.label ?? 'הגדר שנה אקדמית';
@@ -63,7 +92,6 @@ const HomeScreen = () => {
         >
           <Text style={styles.yearBtnIcon}>🎓</Text>
           <Text style={styles.yearBtnText}>שנה {yearLabel}</Text>
-          <Text style={styles.yearBtnChevron}>›</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.settingsBtn} onPress={() => router.push('/settings')}>
@@ -91,32 +119,32 @@ const HomeScreen = () => {
           <Text style={styles.emptyText}>לחץ על הכפתור + למטה כדי ליצור קורס חדש</Text>
         </View>
       ) : (
-        <FlatList
-          data={courses}
-          keyExtractor={c => c.id}
-          renderItem={({ item }) => (
-            <CourseCard
-              course={item}
-              onPress={() => router.push(`/course/${item.id}`)}
-              onLongPress={() => handleLongPress(item.id, item.name)}
-            />
-          )}
+        <ScrollView 
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
-        />
+          scrollEnabled={!isDragging}
+        >
+          <JSReorderList
+            data={courses}
+            onReorder={reorderCourses}
+            itemHeight={80} // 70 (height) + 10 (margin/spacing)
+            onDragStateChange={setIsDragging}
+            renderItem={(item, dragTrigger) => (
+              <CourseCard
+                course={item}
+                onPress={() => router.push(`/course/${item.id}`)}
+                onLongPress={handleLongPress}
+                dragTrigger={dragTrigger}
+              />
+            )}
+          />
+        </ScrollView>
       )}
 
       {/* FAB */}
       <TouchableOpacity style={styles.fab} onPress={() => {
         if (!academicYear) {
-          Alert.alert(
-            'הגדרת שנה אקדמית',
-            'צריך להגדיר את תאריכי הסמסטרים קודם',
-            [
-              { text: 'ביטול', style: 'cancel' },
-              { text: 'הגדר עכשיו', onPress: () => setShowYearModal(true) },
-            ]
-          );
+          setDeleteConfirm({ visible: true, courseId: 'YEAR_SETUP' });
         } else {
           setShowCreate(true);
         }
@@ -128,14 +156,43 @@ const HomeScreen = () => {
       <CreateCourseModal
         visible={showCreate}
         academicYear={academicYear}
-        onClose={() => setShowCreate(false)}
-        onSave={handleCreateCourse}
+        courseToEdit={courseToEdit}
+        onClose={() => { setShowCreate(false); setCourseToEdit(null); }}
+        onSave={handleSaveCourse}
       />
       <AcademicYearModal
         visible={showYearModal}
         current={academicYear}
         onClose={() => setShowYearModal(false)}
         onSave={saveYear}
+      />
+      <CourseActionMenu
+        course={longPressedCourse}
+        position={menuPosition}
+        visible={!!longPressedCourse}
+        onClose={() => { setLongPressedCourse(null); setMenuPosition(null); }}
+        onDelete={confirmDelete}
+        onEdit={handleEditCourse}
+      />
+      
+      <ConfirmModal
+        visible={deleteConfirm.visible}
+        title={deleteConfirm.courseId === 'YEAR_SETUP' ? "הגדרת שנה אקדמית" : "מחיקת קורס"}
+        message={deleteConfirm.courseId === 'YEAR_SETUP' 
+          ? "צריך להגדיר את תאריכי הסמסטרים לפני שניתן ליצור קורסים. האם תרצי לעשות זאת עכשיו?"
+          : `האם אתה בטוח שברצונך למחוק את "${courses.find(c => c.id === deleteConfirm.courseId)?.name}"? האקשן זה ימחוק גם את כל המפגשים הקשורים.`
+        }
+        confirmLabel={deleteConfirm.courseId === 'YEAR_SETUP' ? "הגדר עכשיו" : "מחק"}
+        cancelLabel="ביטול"
+        onConfirm={deleteConfirm.courseId === 'YEAR_SETUP' ? () => { setDeleteConfirm({ visible: false, courseId: '' }); setShowYearModal(true); } : handleDelete}
+        onCancel={() => setDeleteConfirm({ visible: false, courseId: '' })}
+        isDestructive={deleteConfirm.courseId !== 'YEAR_SETUP'}
+      />
+
+      <SuccessToast 
+        visible={toast.visible} 
+        message={toast.message} 
+        onHide={() => setToast({ visible: false, message: '' })} 
       />
     </SafeAreaView>
   );
@@ -169,7 +226,6 @@ const styles = StyleSheet.create({
     fontFamily: 'Heebo_600SemiBold',
     color: Colors.primaryLight,
   },
-  yearBtnChevron: { fontSize: 16, color: Colors.textMuted },
   settingsBtn: { padding: Spacing.xs },
   settingsIcon: { fontSize: 22 },
   titleRow: {

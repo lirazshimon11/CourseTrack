@@ -1,111 +1,187 @@
-import React from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import React, { useRef, memo, useState } from 'react';
+import { View, Text, StyleSheet, Pressable, Animated, PanResponder, Dimensions } from 'react-native';
 import { Colors, Spacing, Radius, FontSize } from '../constants/theme';
 import { Session } from '../types';
-import { formatHebrewDate, formatTime, getSessionLabel } from '../lib/dateUtils';
+import { formatHebrewDate } from '../lib/dateUtils';
+
+const SCREEN_WIDTH = Dimensions.get('window').width;
+const SWIPE_THRESHOLD = 80;
 
 interface SessionItemProps {
   session: Session;
   onPress: () => void;
+  onStatusChange: (status: 'attended' | 'missed' | 'pending') => void;
 }
 
-const ATTENDANCE_CONFIG = {
-  attended: { color: Colors.attended, label: '✓ נצפה', bg: Colors.attended + '18' },
-  missed:   { color: Colors.missed,   label: '✗ לא נצפה', bg: Colors.missed + '18' },
-};
+const SessionItemComponent = ({ session, onPress, onStatusChange }: SessionItemProps) => {
+  const translateX = useRef(new Animated.Value(0)).current;
+  const [swipeTriggered, setSwipeTriggered] = useState<'left' | 'right' | null>(null);
 
-export function SessionItem({ session, onPress }: SessionItemProps) {
-  const isLecture = session.type === 'lecture';
-  const accentColor = isLecture ? Colors.lectureColor : Colors.exerciseColor;
-  const label = getSessionLabel(session);
-  const dateLabel = formatHebrewDate(session.date);
-  const timeLabel = `${formatTime(session.start_time)}–${formatTime(session.end_time)}`;
-  const attendance = session.attendance ? ATTENDANCE_CONFIG[session.attendance] : null;
-  const hasNotes = session.notes && session.notes.trim().length > 0;
+  const getStatusColor = () => {
+    if (session.attendance === 'attended') return '#10B981';
+    if (session.attendance === 'missed') return '#EF4444';
+    return Colors.textMuted;
+  };
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gestureState) => Math.abs(gestureState.dx) > 10,
+      onPanResponderMove: (_, gestureState) => {
+        translateX.setValue(gestureState.dx);
+        // Visual feedback during swipe
+        if (gestureState.dx > SWIPE_THRESHOLD && swipeTriggered !== 'left') {
+          setSwipeTriggered('left');
+        } else if (gestureState.dx < -SWIPE_THRESHOLD && swipeTriggered !== 'right') {
+          setSwipeTriggered('right');
+        } else if (Math.abs(gestureState.dx) < SWIPE_THRESHOLD) {
+          setSwipeTriggered(null);
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dx > SWIPE_THRESHOLD) {
+          // Trigger Attended
+          triggerAction('attended');
+        } else if (gestureState.dx < -SWIPE_THRESHOLD) {
+          // Trigger Missed
+          triggerAction('missed');
+        } else {
+          // Snap back
+          snapBack();
+        }
+      },
+    })
+  ).current;
+
+  const snapBack = () => {
+    Animated.spring(translateX, {
+      toValue: 0,
+      useNativeDriver: true,
+      tension: 40,
+      friction: 7,
+    }).start(() => setSwipeTriggered(null));
+  };
+
+  const triggerAction = (status: 'attended' | 'missed' | 'pending') => {
+    // We stay at the current point for a brief moment, then snap back and update
+    setTimeout(() => {
+      snapBack();
+      setTimeout(() => {
+        onStatusChange(status);
+      }, 200);
+    }, 500);
+  };
+
+  const { dayName, datePart } = formatHebrewDate(session.date);
+  const timeRange = `\u200E${session.start_time.substring(0, 5)} - ${session.end_time.substring(0, 5)}\u200E`;
+
+  // UI colors based on swipe direction
+  const backgroundColor = translateX.interpolate({
+    inputRange: [-SCREEN_WIDTH, -SWIPE_THRESHOLD, 0, SWIPE_THRESHOLD, SCREEN_WIDTH],
+    outputRange: ['#EF4444', '#EF4444', 'transparent', '#10B981', '#10B981'],
+  });
+
+  const actionTextOpacity = translateX.interpolate({
+    inputRange: [-SWIPE_THRESHOLD, -20, 0, 20, SWIPE_THRESHOLD],
+    outputRange: [1, 0, 0, 0, 1],
+  });
 
   return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [styles.container, pressed && styles.pressed]}
-    >
-      <View style={[styles.dot, { backgroundColor: accentColor }]} />
-      <View style={styles.body}>
-        <View style={styles.header}>
-          <Text style={styles.label}>{label} – {dateLabel}</Text>
-          {attendance && (
-            <View style={[styles.badge, { backgroundColor: attendance.bg, borderColor: attendance.color + '55' }]}>
-              <Text style={[styles.badgeText, { color: attendance.color }]}>{attendance.label}</Text>
-            </View>
-          )}
-        </View>
-        <Text style={styles.time}>{timeLabel}</Text>
-        {hasNotes && (
-          <Text style={styles.notesSnippet} numberOfLines={1}>📝 {session.notes}</Text>
-        )}
-      </View>
-    </Pressable>
+    <View style={styles.outerContainer}>
+      <Animated.View style={[styles.background, { backgroundColor }]}>
+        <Animated.View style={[styles.actionContent, { opacity: actionTextOpacity, flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 30 }]}>
+          <Text style={styles.actionText}>לא נצפה ✕</Text>
+          <Text style={styles.actionText}>נצפה ✓</Text>
+        </Animated.View>
+      </Animated.View>
+
+      <Animated.View
+        style={[styles.container, { transform: [{ translateX }], borderRightColor: getStatusColor() }]}
+        {...panResponder.panHandlers}
+      >
+        <Pressable onPress={onPress} style={styles.pressable}>
+          <View style={styles.mainContent}>
+            <Text style={styles.titleLine}>
+              {session.type === 'lecture' ? 'הרצאה' : 'תרגול'} {session.session_number} – {datePart}
+            </Text>
+            <Text style={styles.subtitleLine}>
+              {dayName} • {timeRange}
+            </Text>
+          </View>
+
+          <View style={styles.statusSection}>
+            <Text style={[styles.statusToggle, { color: getStatusColor() }]}>
+              {session.attendance === 'attended' ? '✓' : session.attendance === 'missed' ? '✕' : '○'}
+            </Text>
+          </View>
+        </Pressable>
+      </Animated.View>
+    </View>
   );
-}
+};
+
+export const SessionItem = memo(SessionItemComponent);
+export default SessionItem;
 
 const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: Spacing.md,
-    paddingHorizontal: Spacing.md,
+  outerContainer: {
+    marginVertical: 4,
+    marginHorizontal: Spacing.md,
     borderRadius: Radius.md,
-    backgroundColor: Colors.surfaceElevated,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
-    marginBottom: Spacing.xs,
-    gap: Spacing.sm,
+    overflow: 'hidden',
+    backgroundColor: Colors.surface, // Underlying color
   },
-  pressed: {
-    opacity: 0.7,
+  background: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
   },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  body: {
+  actionContent: {
     flex: 1,
-    gap: 2,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Spacing.sm,
-    gap: Spacing.sm,
   },
-  label: {
-    fontSize: FontSize.md,
-    fontFamily: 'Heebo_600SemiBold',
-    color: Colors.text,
-    textAlign: 'left',
+  actionText: {
+    color: '#fff',
+    fontFamily: 'Heebo_700Bold',
+    fontSize: FontSize.sm,
+  },
+  container: {
+    backgroundColor: Colors.card,
+    borderRadius: Radius.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRightWidth: 4,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  pressable: {
     flex: 1,
+    padding: Spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  badge: {
-    borderRadius: Radius.full,
-    borderWidth: 1,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+  mainContent: {
+    flex: 1,
+    alignItems: 'flex-start',
   },
-  badgeText: {
-    fontSize: FontSize.xs,
-    fontFamily: 'Heebo_500Medium',
+  titleLine: {
+    fontSize: FontSize.md,
+    fontFamily: 'Heebo_700Bold',
+    color: Colors.text,
+    marginBottom: 2,
+    textAlign: 'left',
   },
-  time: {
+  subtitleLine: {
     fontSize: FontSize.sm,
     fontFamily: 'Heebo_400Regular',
     color: Colors.textSecondary,
     textAlign: 'left',
   },
-  notesSnippet: {
-    fontSize: FontSize.xs,
-    fontFamily: 'Heebo_400Regular',
-    color: Colors.textMuted,
-    textAlign: 'left',
+  statusSection: {
+    paddingLeft: Spacing.sm,
+  },
+  statusToggle: {
+    fontSize: 20,
+    fontWeight: 'bold',
   },
 });

@@ -18,8 +18,11 @@ export interface Course {
   id: string;
   name: string;
   semester: Semester;
+  color: string;
+  order_index: number;
   academic_year_id: string | null;
   created_at: string;
+  slots?: ScheduleSlot[];
 }
 
 export interface ScheduleSlot {
@@ -43,6 +46,7 @@ export interface Session {
   session_number: number;
   attendance: AttendanceStatus;
   notes: string;
+  updated_at: string | null;
   created_at: string;
 }
 
