@@ -19,8 +19,8 @@ import { Semester, ScheduleSlot, Course } from '../types';
 
 const HomeScreen = () => {
   const router = useRouter();
-  const { courses, loading, createCourse, deleteCourse, updateCourse, reorderCourses, moveCourse } = useCourses();
   const { academicYear, saveYear } = useAcademicYear();
+  const { courses, loading, createCourse, deleteCourse, updateCourse, reorderCourses, moveCourse } = useCourses(academicYear?.id);
   const [isDragging, setIsDragging] = useState(false);
 
   const [showCreate, setShowCreate] = useState(false);

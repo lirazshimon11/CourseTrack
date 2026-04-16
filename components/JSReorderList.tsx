@@ -24,15 +24,32 @@ interface Props {
 export const JSReorderList = ({ data, renderItem, onReorder, itemHeight, onDragStateChange }: Props) => {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [hoverIndex, setHoverIndex] = useState<number>(-1);
-  const panY = useRef(new Animated.Value(0)).current;
+  const [localData, setLocalData] = useState(data);
   
+  const panY = useRef(new Animated.Value(0)).current;
   const activeIdRef = useRef<string | null>(null);
   const originalIndexRef = useRef<number>(-1);
+  const hoverIndexRef = useRef<number>(-1);
+  const localDataRef = useRef(data);
+
+  // Sync localData and Ref whenever data prop changes
+  useEffect(() => {
+    if (!activeId) {
+      setLocalData(data);
+      localDataRef.current = data;
+    }
+  }, [data, activeId]);
 
   const onDragStart = (id: string) => {
-    const idx = data.findIndex(d => d.id === id);
+    // Crucial: Use the current state of localDataRef
+    const idx = localDataRef.current.findIndex(d => d.id === id);
+    if (idx === -1) return;
+
     originalIndexRef.current = idx;
+    hoverIndexRef.current = idx;
     activeIdRef.current = id;
+    
+    // Set state for rendering
     setActiveId(id);
     setHoverIndex(idx);
     panY.setValue(0);
@@ -45,35 +62,40 @@ export const JSReorderList = ({ data, renderItem, onReorder, itemHeight, onDragS
       onMoveShouldSetPanResponder: () => !!activeIdRef.current,
       onPanResponderMove: (_, gesture) => {
         if (!activeIdRef.current) return;
+        
         panY.setValue(gesture.dy);
 
-        // Calculate current "virtual" index based on dy
+        // Calculate index change
         const indexChange = Math.round(gesture.dy / itemHeight);
-        const targetIndex = Math.max(0, Math.min(data.length - 1, originalIndexRef.current + indexChange));
+        const targetIndex = Math.max(0, Math.min(localDataRef.current.length - 1, originalIndexRef.current + indexChange));
         
-        if (targetIndex !== hoverIndex) {
+        if (targetIndex !== hoverIndexRef.current) {
           LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+          hoverIndexRef.current = targetIndex;
           setHoverIndex(targetIndex);
         }
       },
       onPanResponderRelease: () => {
         if (!activeIdRef.current) return;
         
-        // Calculate final position
-        const dy = (panY as any)._value;
-        const indexChange = Math.round(dy / itemHeight);
-        const targetIndex = Math.max(0, Math.min(data.length - 1, originalIndexRef.current + indexChange));
-
-        if (targetIndex !== originalIndexRef.current) {
-          const newData = [...data];
+        const finalTarget = hoverIndexRef.current;
+        const currentId = activeIdRef.current;
+        
+        if (finalTarget !== originalIndexRef.current && finalTarget !== -1) {
+          const newData = [...localDataRef.current];
           const [removed] = newData.splice(originalIndexRef.current, 1);
-          newData.splice(targetIndex, 0, removed);
+          newData.splice(finalTarget, 0, removed);
+          
+          localDataRef.current = newData;
+          setLocalData(newData);
           onReorder(newData);
         }
 
+        // Cleanup
         activeIdRef.current = null;
         setActiveId(null);
         setHoverIndex(-1);
+        hoverIndexRef.current = -1;
         panY.setValue(0);
         onDragStateChange?.(false);
       },
@@ -81,6 +103,7 @@ export const JSReorderList = ({ data, renderItem, onReorder, itemHeight, onDragS
         activeIdRef.current = null;
         setActiveId(null);
         setHoverIndex(-1);
+        hoverIndexRef.current = -1;
         panY.setValue(0);
         onDragStateChange?.(false);
       }
@@ -89,16 +112,16 @@ export const JSReorderList = ({ data, renderItem, onReorder, itemHeight, onDragS
 
   return (
     <View style={styles.container} {...panResponder.panHandlers}>
-      {data.map((item, index) => {
+      {localData.map((item, index) => {
         const isActive = activeId === item.id;
         
-        // Calculate shift for other items
         let translateY = 0;
         if (activeId && !isActive) {
+          // Shifting logic
           if (index > originalIndexRef.current && index <= hoverIndex) {
-            translateY = -itemHeight; // Shift up
+            translateY = -itemHeight;
           } else if (index < originalIndexRef.current && index >= hoverIndex) {
-            translateY = itemHeight; // Shift down
+            translateY = itemHeight;
           }
         }
 
@@ -130,6 +153,6 @@ export const JSReorderList = ({ data, renderItem, onReorder, itemHeight, onDragS
 
 const styles = StyleSheet.create({
   container: {
-    paddingBottom: 100,
+    paddingBottom: 200,
   },
 });

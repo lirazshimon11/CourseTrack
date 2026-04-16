@@ -3,16 +3,23 @@ import { supabase } from '../lib/supabase';
 import { Course, Semester, ScheduleSlot, AcademicYear } from '../types';
 import { generateSessions } from '../lib/dateUtils';
 
-export function useCourses() {
+export function useCourses(academicYearId?: string | null) {
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchCourses = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    let query = supabase
       .from('courses')
       .select('*, slots:schedule_slots(*)')
-      .order('order_index', { ascending: true });
+      .order('order_index', { ascending: true })
+      .order('created_at', { ascending: true });
+
+    if (academicYearId) {
+      query = query.eq('academic_year_id', academicYearId);
+    }
+
+    const { data, error } = await query;
 
     if (!error && data) {
       setCourses(data);
@@ -22,7 +29,7 @@ export function useCourses() {
 
   useEffect(() => {
     fetchCourses();
-  }, []);
+  }, [academicYearId]);
 
   const createCourse = async (
     name: string,
@@ -68,7 +75,7 @@ export function useCourses() {
       }
     }
 
-    setCourses(prev => [course, ...prev]);
+    setCourses(prev => [...prev, course]);
     return { success: true, courseId: course.id };
   };
 
@@ -179,21 +186,26 @@ export function useCourses() {
   };
 
   const reorderCourses = async (newOrderedCourses: Course[]) => {
-    // Update local state first for snapiness
+    // 1. Update local state immediately for responsiveness
     setCourses(newOrderedCourses);
 
-    const updates = newOrderedCourses.map((c, i) => {
-      const { slots, ...courseData } = c as any;
-      return {
-        ...courseData,
-        order_index: i
-      };
-    });
+    // 2. Prepare only the necessary fields for update
+    // We only send id and order_index to avoid schema/constraint issues with joined data
+    const updates = newOrderedCourses.map((c, i) => ({
+      id: c.id,
+      name: c.name,
+      semester: c.semester,
+      color: c.color,
+      academic_year_id: c.academic_year_id,
+      order_index: i
+    }));
 
-    const { error } = await supabase.from('courses').upsert(updates);
-    if (error) {
+    try {
+      const { error } = await supabase.from('courses').upsert(updates);
+      if (error) throw error;
+    } catch (error) {
       console.error('Reorder error:', error);
-      fetchCourses(); // Rollback
+      fetchCourses(); // Rollback if DB update fails
     }
   };
 
