@@ -49,13 +49,15 @@ const CourseScreen = () => {
   };
 
   const handleNotesChange = async (sessionId: string, notes: string) => {
-    await updateNotes(sessionId, notes);
-    if (selectedSession?.id === sessionId) {
-      setSelectedSession(prev => prev ? { ...prev, notes } : null);
+    const result = await updateNotes(sessionId, notes);
+    if (result.success && result.session && selectedSession?.id === sessionId) {
+      setSelectedSession(result.session);
+      return true;
     }
+    return false;
   };
 
-  const semesterColor = course?.color || Colors.primary;
+  const semesterColor = course?.color || '#3B82F6';
 
   const TABS: { key: TabType; label: string }[] = [
     { key: 'lecture', label: 'הרצאות' },
@@ -73,7 +75,7 @@ const CourseScreen = () => {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="arrow-forward" size={24} color={Colors.primaryLight} />
+          <Ionicons name="arrow-forward" size={24} color={semesterColor} />
         </TouchableOpacity>
         <View style={styles.headerTitle}>
           <Text style={styles.courseName} numberOfLines={1}>{course?.name ?? '...'}</Text>
@@ -140,6 +142,7 @@ const CourseScreen = () => {
               sessions={item.sessions}
               onSessionPress={setSelectedSession}
               onStatusChange={handleAttendanceChange}
+              themeColor={semesterColor}
             />
           )}
           contentContainerStyle={styles.list}
@@ -152,6 +155,8 @@ const CourseScreen = () => {
         session={selectedSession}
         onClose={() => setSelectedSession(null)}
         onNotesChange={handleNotesChange}
+        onStatusChange={handleAttendanceChange}
+        themeColor={semesterColor}
       />
     </SafeAreaView>
   );

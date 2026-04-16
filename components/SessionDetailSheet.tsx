@@ -1,29 +1,39 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View, Text, StyleSheet, Modal, TouchableOpacity,
-  TextInput, Pressable, Animated, PanResponder, Dimensions, ScrollView
+  TextInput, Pressable, Animated, PanResponder, Dimensions, Keyboard
 } from 'react-native';
 import { Colors, Spacing, Radius, FontSize } from '../constants/theme';
-import { Session } from '../types';
+import { Session, AttendanceStatus } from '../types';
 import { formatHebrewDate } from '../lib/dateUtils';
 
 interface Props {
   session: Session | null;
   onClose: () => void;
-  onNotesChange: (sessionId: string, notes: string) => Promise<void>;
+  onNotesChange: (sessionId: string, notes: string) => Promise<boolean>;
+  onStatusChange: (sessionId: string, attendance: AttendanceStatus) => Promise<void>;
+  themeColor: string;
 }
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 
-export const SessionDetailSheet = ({ session, onClose, onNotesChange }: Props) => {
+const ATTENDANCE_OPTIONS: { key: AttendanceStatus; label: string; emoji: string }[] = [
+  { key: 'attended', label: 'נצפה', emoji: '✅' },
+  { key: 'missed', label: 'לא נצפה', emoji: '❌' },
+  { key: null, label: 'לא ידוע', emoji: '❓' },
+];
+
+export const SessionDetailSheet = ({ session, onClose, onNotesChange, onStatusChange, themeColor }: Props) => {
   const [notes, setNotes] = useState('');
-  const [isEditing, setIsEditing] = useState(false);
+  const [localAttendance, setLocalAttendance] = useState<AttendanceStatus>(null);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const toastOpacity = React.useRef(new Animated.Value(0)).current;
   const translateY = React.useRef(new Animated.Value(SCREEN_HEIGHT)).current;
 
   useEffect(() => {
     if (session) {
       setNotes(session.notes || '');
-      setIsEditing(false);
+      setLocalAttendance(session.attendance ?? null);
       Animated.spring(translateY, {
         toValue: 0,
         useNativeDriver: true,
@@ -55,82 +65,138 @@ export const SessionDetailSheet = ({ session, onClose, onNotesChange }: Props) =
     })
   ).current;
 
+  const lastUpdatedText = useMemo(() => {
+    if (!session) return '...';
+    try {
+      const ts = session.updated_at || session.created_at;
+      if (!ts) return '';
+      const date = new Date(ts);
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const year = date.getFullYear();
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      return `${day}.${month}.${year}, ${hours}:${minutes}`;
+    } catch (e) {
+      return '';
+    }
+  }, [session?.updated_at, session?.created_at]);
+
+  const formattedDate = session ? formatHebrewDate(session.date).full : '';
+  const timeRange = session ? `\u200E${session.start_time.substring(0, 5)} - ${session.end_time.substring(0, 5)}\u200E` : '';
+
   if (!session) return null;
 
   const handleSaveNotes = async () => {
-    await onNotesChange(session.id, notes);
-    setIsEditing(false);
+    const success = await onNotesChange(session.id, notes);
+    if (success) {
+      setShowSuccess(true);
+      Animated.sequence([
+        Animated.timing(toastOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
+        Animated.delay(1500),
+        Animated.timing(toastOpacity, { toValue: 0, duration: 500, useNativeDriver: true })
+      ]).start(() => setShowSuccess(false));
+    }
   };
 
-  const formattedDate = formatHebrewDate(session.date).full;
-  const timeRange = `\u200E${session.start_time.substring(0, 5)} - ${session.end_time.substring(0, 5)}\u200E`;
+  const handleAttendancePick = async (key: AttendanceStatus) => {
+    setLocalAttendance(key);
+    await onStatusChange(session.id, key);
+  };
+
+  const hasChanges = notes !== (session.notes || '');
 
   return (
     <Modal visible={!!session} transparent animationType="none" statusBarTranslucent>
       <View style={styles.overlay}>
         <Pressable style={styles.backdrop} onPress={onClose} />
-        <Animated.View 
+        <Animated.View
           style={[styles.sheet, { transform: [{ translateY }] }]}
-          {...panResponder.panHandlers}
         >
-          <View style={styles.handleBar} />
-          
-          <View style={styles.header}>
-            <Text style={styles.title}>
-              {session.type === 'lecture' ? 'הרצאה' : 'תרגול'} {session.session_number} – {formattedDate}
-            </Text>
-            <Text style={styles.lastUpdated}>
-              עדכון אחרון: {new Date(session.updated_at || session.created_at).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}
-            </Text>
+          {showSuccess && (
+            <Animated.View style={[styles.successToast, { opacity: toastOpacity }]}>
+              <Text style={styles.successText}>✓ השינויים נשמרו בהצלחה</Text>
+            </Animated.View>
+          )}
+
+          {/* Gesture Drag Zone */}
+          <View {...panResponder.panHandlers} style={styles.dragZone}>
+            <View style={styles.handleBar} />
+
+            <Pressable onPress={Keyboard.dismiss} accessible={false}>
+              <View style={styles.header}>
+                <Text style={styles.title}>
+                  {session.type === 'lecture' ? 'הרצאה' : 'תרגול'} {session.session_number} – {formattedDate}
+                </Text>
+                <Text style={styles.timeRange}>{timeRange}</Text>
+                <Text style={styles.lastUpdated}>
+                  עדכון אחרון: {lastUpdatedText}
+                </Text>
+              </View>
+            </Pressable>
           </View>
 
-          <View style={styles.content}>
-            <View style={styles.notesHeader}>
-              <Text style={styles.sectionTitle}>הערות</Text>
-              <TouchableOpacity onPress={() => isEditing ? handleSaveNotes() : setIsEditing(true)}>
-                <Text style={styles.editBtn}>{isEditing ? 'שמור' : 'ערוך'}</Text>
-              </TouchableOpacity>
-            </View>
-            
-            <View style={styles.notesBox}>
-              {isEditing ? (
+          <Pressable 
+            style={styles.sheetContentWrapper} 
+            onPress={Keyboard.dismiss}
+            accessible={false}
+          >
+            <View style={styles.content}>
+
+              {/* Notes */}
+              <View style={styles.notesHeader}>
+                <Text style={styles.sectionTitle}>הערות</Text>
+                {hasChanges && (
+                  <TouchableOpacity onPress={handleSaveNotes}>
+                    <Text style={[styles.saveBtn, { color: themeColor }]}>שמור שינויים</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              <View style={styles.notesBox}>
                 <TextInput
                   style={styles.notesInput}
                   multiline
                   value={notes}
                   onChangeText={setNotes}
-                  placeholder="הוסף הערות כאן..."
+                  placeholder="כתוב הערות כאן..."
                   placeholderTextColor={Colors.textMuted}
-                  autoFocus
                 />
-              ) : (
-                <View style={{ flex: 1 }}>
-                  <ScrollView style={{ flex: 1 }}>
-                    <Text style={styles.notesText}>
-                      {session.notes || 'אין הערות למפגש זה.'}
-                    </Text>
-                  </ScrollView>
-                </View>
-              )}
-            </View>
+              </View>
 
-            <View style={styles.footerInfo}>
-              <View style={styles.infoRow}>
-                <Text style={styles.infoValue}>{session.type === 'lecture' ? 'הרצאה' : 'תרגול'}</Text>
-                <Text style={styles.infoLabel}>סוג מפגש:</Text>
+              {/* Attendance Selector */}
+              <View style={styles.attendanceRow}>
+                {ATTENDANCE_OPTIONS.map(opt => {
+                  const isActive = localAttendance === opt.key;
+                  return (
+                    <TouchableOpacity
+                      key={String(opt.key)}
+                      style={[
+                        styles.attendanceBtn,
+                        isActive && {
+                          backgroundColor: themeColor + '22',
+                          borderColor: themeColor,
+                        },
+                      ]}
+                      onPress={() => handleAttendancePick(opt.key)}
+                      activeOpacity={0.75}
+                    >
+                      <Text style={styles.attendanceEmoji}>{opt.emoji}</Text>
+                      <Text
+                        style={[
+                          styles.attendanceBtnText,
+                          isActive && { color: themeColor, fontFamily: 'Heebo_700Bold' },
+                        ]}
+                      >
+                        {opt.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
-              <View style={styles.infoRow}>
-                <Text style={styles.infoValue}>{timeRange}</Text>
-                <Text style={styles.infoLabel}>שעה:</Text>
-              </View>
-              <View style={styles.infoRow}>
-                <Text style={[styles.infoValue, { color: session.attendance === 'attended' ? '#10B981' : session.attendance === 'missed' ? '#EF4444' : Colors.textMuted }]}>
-                  {session.attendance === 'attended' ? 'נוכח' : session.attendance === 'missed' ? 'לא נוכח' : 'טרם עודכן'}
-                </Text>
-                <Text style={styles.infoLabel}>סטטוס נוכחות:</Text>
-              </View>
+
             </View>
-          </View>
+          </Pressable>
         </Animated.View>
       </View>
     </Modal>
@@ -155,56 +221,127 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     marginVertical: Spacing.md,
   },
-  header: { padding: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border, alignItems: 'center' },
-  title: { fontSize: FontSize.md, fontFamily: 'Heebo_700Bold', color: Colors.text, textAlign: 'center' },
-  lastUpdated: { fontSize: 10, color: Colors.textMuted, marginTop: 4 },
+  header: {
+    paddingHorizontal: Spacing.md,
+    paddingBottom: Spacing.sm,
+    alignItems: 'center',
+  },
+  dragZone: {
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  sheetContentWrapper: {
+    flex: 1,
+  },
+  title: {
+    fontSize: FontSize.md + 2,
+    fontFamily: 'Heebo_700Bold',
+    color: Colors.text,
+    textAlign: 'center',
+  },
+  timeRange: {
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+    fontFamily: 'Heebo_500Medium',
+    marginTop: 2,
+    textAlign: 'center',
+  },
+  lastUpdated: {
+    fontSize: 12,
+    color: Colors.textMuted,
+    marginTop: 4,
+    marginBottom: 4,
+    textAlign: 'center',
+    width: '100%',
+  },
   content: { padding: Spacing.md, flex: 1 },
+
+  // Attendance selector
+  attendanceRow: {
+    flexDirection: 'row',
+    gap: Spacing.xs,
+    marginTop: Spacing.md,
+  },
+  attendanceBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 6,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
+    gap: 4,
+  },
+  attendanceEmoji: {
+    fontSize: 13,
+  },
+  attendanceBtnText: {
+    fontSize: 12,
+    fontFamily: 'Heebo_500Medium',
+    color: Colors.textSecondary,
+    textAlign: 'center',
+  },
+
+  // Notes
   notesHeader: {
-    flexDirection: 'row', 
+    flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Spacing.sm
+    marginBottom: Spacing.sm,
   },
-  sectionTitle: { fontSize: FontSize.md, fontFamily: 'Heebo_600SemiBold', color: Colors.textSecondary, textAlign: 'right' },
-  editBtn: { color: Colors.primaryLight, fontFamily: 'Heebo_600SemiBold', textAlign: 'left' },
+  sectionTitle: {
+    fontSize: FontSize.md,
+    fontFamily: 'Heebo_600SemiBold',
+    color: Colors.textSecondary,
+    textAlign: 'right',
+  },
+  saveBtn: {
+    fontFamily: 'Heebo_700Bold',
+    textAlign: 'left',
+    fontSize: FontSize.sm,
+  },
   notesBox: {
-    flex: 1,
-    minHeight: 150,
     backgroundColor: Colors.card,
     borderRadius: Radius.md,
-    padding: Spacing.md,
+    paddingHorizontal: Spacing.md,
     borderWidth: 1,
     borderColor: Colors.border,
   },
   notesInput: {
-    flex: 1,
+    minHeight: 100,
+    maxHeight: 350,
     color: Colors.text,
     fontSize: FontSize.sm,
     textAlignVertical: 'top',
     textAlign: 'right',
+    paddingTop: 16,
+    paddingBottom: 16,
   },
-  notesText: { 
-    color: Colors.text, 
-    fontSize: FontSize.sm, 
-    textAlign: 'left',
-    width: '100%',
-    writingDirection: 'rtl'
-  },
-  footerInfo: { marginTop: Spacing.xl, gap: 4 },
-  infoRow: { 
-    flexDirection: 'row', 
-    justifyContent: 'flex-start',
+  successToast: {
+    position: 'absolute',
+    top: -45,
+    left: 20,
+    right: 20,
+    backgroundColor: '#10B981',
+    borderRadius: Radius.full,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    flexDirection: 'row',
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 6,
-    borderBottomWidth: 0.7,
-    borderBottomColor: Colors.border + '33',
+    zIndex: 1000,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
   },
-  infoLabel: { 
-    fontSize: FontSize.sm, 
-    color: Colors.textMuted, 
-    fontFamily: 'Heebo_400Regular', 
-    marginLeft: 8,
-    textAlign: 'right' 
+  successText: {
+    color: '#FFFFFF',
+    fontSize: FontSize.sm,
+    fontFamily: 'Heebo_700Bold',
+    textAlign: 'center',
   },
-  infoValue: { fontSize: FontSize.sm, color: Colors.text, fontFamily: 'Heebo_600SemiBold', textAlign: 'right' },
 });

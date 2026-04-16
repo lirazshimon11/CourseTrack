@@ -1,6 +1,6 @@
 export type Semester = 'א' | 'ב' | 'ג';
 export type SessionType = 'lecture' | 'exercise';
-export type AttendanceStatus = 'attended' | 'missed' | null;
+export type AttendanceStatus = 'attended' | 'missed' | 'unknown' | null;
 
 export interface AcademicYear {
   id: string;

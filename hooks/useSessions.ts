@@ -48,17 +48,47 @@ export const useSessions = (courseId: string | undefined, type: SessionType) => 
 
   const updateNotes = async (sessionId: string, notes: string) => {
     const now = new Date().toISOString();
-    setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, notes, updated_at: now } : s));
-    const { error } = await supabase
-      .from('sessions')
-      .update({ notes, updated_at: now })
-      .eq('id', sessionId);
+    console.log('--- START UPDATE NOTES ---');
+    console.log('SessionID:', sessionId);
+    console.log('Notes length:', notes.length);
 
-    if (error) {
+    // Optimistic update
+    setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, notes, updated_at: now } : s));
+    
+    try {
+      const { data, error } = await supabase
+        .from('sessions')
+        .update({ 
+          notes, 
+          updated_at: now 
+        })
+        .eq('id', sessionId)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('SUPABASE ERROR:', error.message, error.details);
+        fetchSessions(); // Rollback
+        return { error };
+      }
+      
+      if (!data) {
+        console.warn('UPDATE SUCCESSFUL BUT NO DATA RETURNED - check RLS policies!');
+        // Even if no data returned, if no error, it might have worked but we can't be sure
+      }
+
+      console.log('UPDATE COMPLETED SUCCESSFULLY:', data);
+      
+      if (data) {
+        setSessions(prev => prev.map(s => s.id === sessionId ? data : s));
+      }
+      
+      return { success: true, session: data || { id: sessionId, notes, updated_at: now } };
+    } catch (e) {
+      console.error('FATAL ERROR DURING UPDATE:', e);
       fetchSessions();
-      return { error };
+      return { error: e };
     }
-    return { success: true };
   };
 
   return { sessions, loading, updateAttendance, updateNotes, refresh: fetchSessions };

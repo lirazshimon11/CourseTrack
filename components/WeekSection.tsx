@@ -9,14 +9,15 @@ interface WeekSectionProps {
   sessions: Session[];
   onSessionPress: (session: Session) => void;
   onStatusChange: (sessionId: string, status: AttendanceStatus) => void;
+  themeColor?: string;
 }
 
-export function WeekSection({ weekNumber, sessions, onSessionPress, onStatusChange }: WeekSectionProps) {
+export function WeekSection({ weekNumber, sessions, onSessionPress, onStatusChange, themeColor }: WeekSectionProps) {
   return (
     <View style={styles.container}>
       <View style={styles.weekHeader}>
         <View style={styles.weekLine} />
-        <Text style={styles.weekLabel}>שבוע {weekNumber}</Text>
+        <Text style={[styles.weekLabel, themeColor ? { color: themeColor } : null]}>שבוע {weekNumber}</Text>
         <View style={styles.weekLine} />
       </View>
       {sessions.map(session => (
