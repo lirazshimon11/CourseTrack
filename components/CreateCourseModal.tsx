@@ -4,14 +4,19 @@ import {
   TextInput, ScrollView, Alert, KeyboardAvoidingView, Platform
 } from 'react-native';
 import { Colors, Spacing, Radius, FontSize } from '../constants/theme';
-import { Semester, ScheduleSlot, AcademicYear, Course } from '../types';
-
-type SlotWithoutMeta = Omit<ScheduleSlot, 'id' | 'course_id'>;
+import { SessionType, AcademicYear, Course, Semester } from '../types';
+type SlotWithoutMeta = {
+  type: SessionType;
+  day_of_week: number;
+  start_time: string;
+  end_time: string;
+};
 
 interface Props {
   visible: boolean;
   academicYear: AcademicYear | null;
   courseToEdit?: Course | null;
+  readOnly?: boolean;
   onClose: () => void;
   onSave: (
     name: string,
@@ -41,7 +46,7 @@ const COURSE_COLORS = [
   '#334155', // Dark Slate
 ];
 
-export const CreateCourseModal = ({ visible, academicYear, courseToEdit, onClose, onSave }: Props) => {
+export const CreateCourseModal = ({ visible, academicYear, courseToEdit, readOnly = false, onClose, onSave }: Props) => {
   const [name, setName] = useState('');
   const [semester, setSemester] = useState<Semester>('א');
   const [color, setColor] = useState(COURSE_COLORS[0]);
@@ -56,18 +61,17 @@ export const CreateCourseModal = ({ visible, academicYear, courseToEdit, onClose
         setSemester(courseToEdit.semester);
         setColor(courseToEdit.color || COURSE_COLORS[0]);
 
-        if (courseToEdit.slots) {
-          // ... mapping logic
-          const lectures = courseToEdit.slots
-            .filter((s: ScheduleSlot) => s.type === 'lecture')
-            .map(({ id, course_id, ...rest }: ScheduleSlot) => ({
+        if (courseToEdit.slots_data) {
+          const lectures = courseToEdit.slots_data
+            .filter(s => s.type === 'lecture')
+            .map((rest: any) => ({
               ...rest,
               start_time: rest.start_time.substring(0, 5),
               end_time: rest.end_time.substring(0, 5)
             }));
-          const exercises = courseToEdit.slots
-            .filter((s: ScheduleSlot) => s.type === 'exercise')
-            .map(({ id, course_id, ...rest }: ScheduleSlot) => ({
+          const exercises = courseToEdit.slots_data
+            .filter(s => s.type === 'exercise')
+            .map((rest: any) => ({
               ...rest,
               start_time: rest.start_time.substring(0, 5),
               end_time: rest.end_time.substring(0, 5)
@@ -99,26 +103,28 @@ export const CreateCourseModal = ({ visible, academicYear, courseToEdit, onClose
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent={false}>
-      <View style={styles.container}>
+    <Modal visible={visible} animationType="slide" transparent={true}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={onClose} style={styles.headerAction}>
-            <Text style={styles.closeBtn}>ביטול</Text>
+          <TouchableOpacity onPress={onClose} style={styles.headerAction} hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}>
+            <Text style={styles.closeBtn}>{readOnly ? 'סגור' : 'ביטול'}</Text>
           </TouchableOpacity>
-          <Text style={styles.title}>{courseToEdit ? 'עריכת קורס' : 'קורס חדש'}</Text>
+          <Text style={styles.title}>{readOnly ? 'פרטי קורס' : (courseToEdit ? 'עריכת קורס' : 'קורס חדש')}</Text>
           <View style={styles.headerAction} />
         </View>
 
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-          <ScrollView style={styles.content} keyboardShouldPersistTaps="handled">
+          <ScrollView style={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             <View style={styles.section}>
               <Text style={styles.label}>שם הקורס</Text>
               <TextInput 
-                style={styles.input} 
+                style={[styles.input, readOnly && { opacity: 0.8 }]} 
                 placeholder="לדוגמה: מבוא למדעי המחשב" 
                 placeholderTextColor={Colors.text}
                 value={name} 
-                onChangeText={setName} 
+                onChangeText={setName}
+                editable={!readOnly}
               />
             </View>
 
@@ -129,7 +135,8 @@ export const CreateCourseModal = ({ visible, academicYear, courseToEdit, onClose
                   <TouchableOpacity 
                     key={c} 
                     style={[styles.colorCircle, { backgroundColor: c }, color === c && styles.colorCircleActive]} 
-                    onPress={() => setColor(c)}
+                    onPress={() => !readOnly && setColor(c)}
+                    disabled={readOnly}
                   >
                     {color === c && <View style={styles.colorInnerCircle} />}
                   </TouchableOpacity>
@@ -141,7 +148,7 @@ export const CreateCourseModal = ({ visible, academicYear, courseToEdit, onClose
               <Text style={styles.label}>סמסטר</Text>
               <View style={styles.row}>
                 {(['א', 'ב', 'קיץ'] as Semester[]).map((s) => (
-                  <TouchableOpacity key={s} style={[styles.chip, semester === s && styles.chipActive]} onPress={() => setSemester(s)}>
+                  <TouchableOpacity key={s} style={[styles.chip, semester === s && styles.chipActive, readOnly && { opacity: 0.8 }]} onPress={() => !readOnly && setSemester(s)} disabled={readOnly}>
                     <Text style={[styles.chipText, semester === s && styles.chipTextActive]}>סמסטר {s}</Text>
                   </TouchableOpacity>
                 ))}
@@ -150,14 +157,17 @@ export const CreateCourseModal = ({ visible, academicYear, courseToEdit, onClose
 
             <View style={styles.section}>
               <View style={styles.rowBetween}>
-                <TouchableOpacity onPress={() => setLectureSlots([...lectureSlots, { day_of_week: 0, start_time: '08:00', end_time: '10:00', type: 'lecture' }])}>
-                  <Text style={styles.addBtn}>+ הוסף הרצאה</Text>
-                </TouchableOpacity>
+                {!readOnly && (
+                  <TouchableOpacity onPress={() => setLectureSlots([...lectureSlots, { day_of_week: 0, start_time: '08:00', end_time: '10:00', type: 'lecture' }])}>
+                    <Text style={styles.addBtn}>+ הוסף הרצאה</Text>
+                  </TouchableOpacity>
+                )}
                 <Text style={styles.label}>זמני הרצאות</Text>
               </View>
               {lectureSlots.map((slot, idx) => (
                 <SlotRow
                   key={idx} slot={slot}
+                  readOnly={readOnly}
                   onUpdate={(u: Partial<SlotWithoutMeta>) => setLectureSlots(lectureSlots.map((s, i) => i === idx ? { ...s, ...u } : s))}
                   onRemove={() => setLectureSlots(lectureSlots.filter((_, i) => i !== idx))}
                 />
@@ -166,14 +176,17 @@ export const CreateCourseModal = ({ visible, academicYear, courseToEdit, onClose
 
             <View style={styles.section}>
               <View style={styles.rowBetween}>
-                <TouchableOpacity onPress={() => setExerciseSlots([...exerciseSlots, { day_of_week: 0, start_time: '08:00', end_time: '10:00', type: 'exercise' }])}>
-                  <Text style={styles.addBtn}>+ הוסף תרגול</Text>
-                </TouchableOpacity>
+                {!readOnly && (
+                  <TouchableOpacity onPress={() => setExerciseSlots([...exerciseSlots, { day_of_week: 0, start_time: '08:00', end_time: '10:00', type: 'exercise' }])}>
+                    <Text style={styles.addBtn}>+ הוסף תרגול</Text>
+                  </TouchableOpacity>
+                )}
                 <Text style={styles.label}>זמני תרגולים</Text>
               </View>
               {exerciseSlots.map((slot, idx) => (
                 <SlotRow
                   key={idx} slot={slot}
+                  readOnly={readOnly}
                   onUpdate={(u: Partial<SlotWithoutMeta>) => setExerciseSlots(exerciseSlots.map((s, i) => i === idx ? { ...s, ...u } : s))}
                   onRemove={() => setExerciseSlots(exerciseSlots.filter((_, i) => i !== idx))}
                 />
@@ -181,31 +194,53 @@ export const CreateCourseModal = ({ visible, academicYear, courseToEdit, onClose
             </View>
             <View style={{ height: 100 }} />
           </ScrollView>
-          <View style={styles.footer}>
-            <TouchableOpacity style={[styles.saveBtn, loading && { opacity: 0.7 }]} onPress={handleSave} disabled={loading}>
-              <Text style={styles.saveBtnText}>{loading ? 'שומר...' : (courseToEdit ? 'שמור שינויים' : 'צור קורס')}</Text>
-            </TouchableOpacity>
-          </View>
+          {!readOnly && (
+            <View style={styles.footer}>
+              <TouchableOpacity style={[styles.saveBtn, loading && { opacity: 0.7 }]} onPress={handleSave} disabled={loading}>
+                <Text style={styles.saveBtnText}>{loading ? 'שומר...' : (courseToEdit ? 'שמור שינויים' : 'צור קורס')}</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </KeyboardAvoidingView>
       </View>
-    </Modal>
+    </View>
+  </Modal>
   );
 };
 
-const SlotRow = ({ slot, onUpdate, onRemove }: any) => (
+const SlotRow = ({ slot, onUpdate, onRemove, readOnly }: any) => (
   <View style={styles.slotRow}>
-    <TouchableOpacity onPress={onRemove} style={styles.removeBtn}>
-      <Text style={styles.removeBtnText}>✕</Text>
-    </TouchableOpacity>
+    {!readOnly && (
+      <TouchableOpacity onPress={onRemove} style={styles.removeBtn}>
+        <Text style={styles.removeBtnText}>✕</Text>
+      </TouchableOpacity>
+    )}
     <View style={styles.slotMain}>
       <View style={styles.timeInputsRow}>
-        <TextInput style={styles.timeInput} value={slot.end_time} onChangeText={(t) => onUpdate({ end_time: t })} placeholder="10:00" />
+        <TextInput 
+          style={[styles.timeInput, readOnly && { opacity: 0.8 }]} 
+          value={slot.end_time} 
+          onChangeText={(t) => onUpdate({ end_time: t })} 
+          placeholder="10:00" 
+          editable={!readOnly}
+        />
         <Text style={styles.dash}>-</Text>
-        <TextInput style={styles.timeInput} value={slot.start_time} onChangeText={(t) => onUpdate({ start_time: t })} placeholder="08:00" />
+        <TextInput 
+          style={[styles.timeInput, readOnly && { opacity: 0.8 }]} 
+          value={slot.start_time} 
+          onChangeText={(t) => onUpdate({ start_time: t })} 
+          placeholder="08:00" 
+          editable={!readOnly}
+        />
       </View>
       <View style={styles.daysRow}>
         {DAYS.map((day, idx) => (
-          <TouchableOpacity key={day} style={[styles.dayChip, slot.day_of_week === idx && styles.dayChipActive]} onPress={() => onUpdate({ day_of_week: idx })}>
+          <TouchableOpacity 
+            key={day} 
+            style={[styles.dayChip, slot.day_of_week === idx && styles.dayChipActive, readOnly && { opacity: 0.8 }]} 
+            onPress={() => !readOnly && onUpdate({ day_of_week: idx })}
+            disabled={readOnly}
+          >
             <Text style={[styles.dayText, slot.day_of_week === idx && styles.dayTextActive]}>{day}</Text>
           </TouchableOpacity>
         ))}
@@ -215,7 +250,30 @@ const SlotRow = ({ slot, onUpdate, onRemove }: any) => (
 );
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background, paddingTop: Platform.OS === 'ios' ? 50 : 20 },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: Platform.OS === 'web' ? '#000000' : Colors.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  container: { 
+    flex: 1, 
+    backgroundColor: Colors.background, 
+    paddingTop: Platform.OS === 'ios' ? 50 : 20,
+    width: '100%',
+    maxWidth: Platform.OS === 'web' ? 480 : undefined,
+    alignSelf: 'center',
+    ...Platform.select({
+      web: {
+        borderLeftWidth: 1,
+        borderRightWidth: 1,
+        borderColor: '#333',
+        shadowColor: '#000',
+        shadowOpacity: 0.5,
+        shadowRadius: 50,
+      }
+    })
+  },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border, backgroundColor: Colors.card },
   headerAction: { width: 60 },
   title: { fontSize: FontSize.lg, fontFamily: 'Heebo_700Bold', color: Colors.text, flex: 1, textAlign: 'center' },

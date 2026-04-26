@@ -11,27 +11,33 @@ import { supabase } from '../lib/supabase';
 
 const SettingsScreen = () => {
   const router = useRouter();
-  const { courses, deleteAllData, recreateSessions } = useCourses();
+  const { courses, deleteAllData, recreateSessions, refetch } = useCourses();
   const [deleting, setDeleting] = useState(false);
   const [fixing, setFixing] = useState(false);
-
-  const handleFixDates = async () => {
+  const handleDeepClean = async () => {
     Alert.alert(
-      'תיקון תאריכים',
-      'פעולה זו תחשב מחדש את תאריכי כל המפגשים בכל הקורסים בהתאם להגדרות השנה האקדמית.\nההערות והנוכחות שלך יישמרו.',
+      'ניקיון עמוק וסנכרון תאריכים',
+      'פעולה זו תמחק את כל המפגשים ותייצר אותם מחדש בצורה נקייה ומדויקת לפי ההגדרות העדכניות בבסיס הנתונים.\nהנוכחות וההערות שלך יישמרו.',
       [
         { text: 'ביטול', style: 'cancel' },
         { 
-          text: 'תקן עכשיו', 
+          text: 'נקה וסנכרן עכשיו', 
           onPress: async () => {
             setFixing(true);
             try {
+              // Refresh courses first to make sure we have the latest slots_data
+              await refetch();
+              
               for (const course of courses) {
-                await recreateSessions(course.id);
+                const res = await recreateSessions(course.id);
+                if (res.error) {
+                  console.error(`Error with ${course.name}:`, res.error);
+                  // Continue to next course even if one fails
+                }
               }
-              Alert.alert('הצלחה', 'כל התאריכים תוקנו בהצלחה!');
-            } catch (err) {
-              Alert.alert('שגיאה', 'חלק מהתאריכים לא תוקנו עקב שגיאה.');
+              Alert.alert('הצלחה', 'הניקיון והסנכרון הושלמו בהצלחה! כל הרשימות עודכנו.');
+            } catch (err: any) {
+              Alert.alert('שגיאה', 'הפעולה נכשלה: ' + (err.message || 'שגיאה לא ידועה'));
             } finally {
               setFixing(false);
             }
@@ -89,8 +95,12 @@ const SettingsScreen = () => {
     <SafeAreaView style={styles.root} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="arrow-forward" size={24} color={Colors.primaryLight} />
+        <TouchableOpacity 
+          onPress={() => router.canGoBack() ? router.back() : router.replace('/')} 
+          style={styles.backBtn} 
+          hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+        >
+          <Ionicons name="arrow-forward" size={28} color={Colors.primaryLight} />
         </TouchableOpacity>
         <Text style={styles.title}>הגדרות</Text>
         <View style={{ width: 40 }} />
@@ -107,15 +117,26 @@ const SettingsScreen = () => {
 
         {/* Tools Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>כלים</Text>
+          <Text style={styles.sectionTitle}>כלים ותחזוקה</Text>
           <TouchableOpacity 
-            style={styles.toolBtn} 
-            onPress={handleFixDates}
+            style={[styles.toolBtn, { backgroundColor: '#1a2b33', borderColor: Colors.primary }]} 
+            onPress={handleDeepClean}
             disabled={fixing}
           >
             {fixing 
               ? <ActivityIndicator color={Colors.primaryLight} />
-              : <Text style={styles.toolBtnText}>📅  תקן סחיפת תאריכים (Fix Date Drift)</Text>
+              : <Text style={styles.toolBtnText}>🌀  סנכרון ויצירת רשימות מחדש</Text>
+            }
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={[styles.toolBtn, { backgroundColor: '#331a1a', borderColor: '#4a1d1d', marginTop: Spacing.md }]} 
+            onPress={handleDeleteAll}
+            disabled={deleting}
+          >
+            {deleting 
+              ? <ActivityIndicator color="#EF4444" />
+              : <Text style={[styles.toolBtnText, { color: '#EF4444' }]}>⚠️  מחיקת כל הנתונים לצמיתות</Text>
             }
           </TouchableOpacity>
         </View>
@@ -161,7 +182,14 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
-  backBtn: { padding: Spacing.xs },
+  backBtn: { 
+    width: 48,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: -Spacing.xs,
+    zIndex: 100,
+  },
   backIcon: { fontSize: 28, color: Colors.primaryLight },
   title: {
     fontSize: FontSize.xl,

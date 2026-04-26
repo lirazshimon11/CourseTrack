@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   View, Text, StyleSheet, Modal, TouchableOpacity,
-  TextInput, Pressable, Animated, PanResponder, Dimensions, Keyboard
+  TextInput, Pressable, Animated, PanResponder, Dimensions, Keyboard, Platform
 } from 'react-native';
 import { Colors, Spacing, Radius, FontSize } from '../constants/theme';
 import { Session, AttendanceStatus } from '../types';
@@ -204,7 +204,11 @@ export const SessionDetailSheet = ({ session, onClose, onNotesChange, onStatusCh
 };
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, justifyContent: 'flex-end' },
+  overlay: { 
+    flex: 1, 
+    justifyContent: 'flex-end',
+    alignItems: 'center', // Center on web
+  },
   backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.6)' },
   sheet: {
     backgroundColor: Colors.background,
@@ -212,6 +216,20 @@ const styles = StyleSheet.create({
     borderTopRightRadius: Radius.xl,
     height: SCREEN_HEIGHT * 0.73,
     paddingBottom: 40,
+    width: '100%',
+    maxWidth: Platform.OS === 'web' ? 480 : undefined,
+    ...Platform.select({
+      web: {
+        borderLeftWidth: 1,
+        borderRightWidth: 1,
+        borderColor: '#333',
+        marginBottom: 20,
+        borderRadius: Radius.xl, // Make it a floating card on web
+        shadowColor: '#000',
+        shadowOpacity: 0.5,
+        shadowRadius: 50,
+      }
+    })
   },
   handleBar: {
     width: 60,

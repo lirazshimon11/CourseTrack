@@ -87,20 +87,21 @@ export function AcademicYearModal({ visible, current, onClose, onSave }: Academi
   };
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+    <Modal visible={visible} animationType="slide" transparent={true} onRequestClose={onClose}>
+      <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={styles.handle} />
         <View style={styles.header}>
-          <TouchableOpacity onPress={onClose}>
+          <TouchableOpacity onPress={onClose} hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}>
             <Text style={styles.cancel}>ביטול</Text>
           </TouchableOpacity>
           <Text style={styles.title}>הגדרות שנה אקדמית</Text>
-          <TouchableOpacity onPress={handleSave} disabled={saving}>
+          <TouchableOpacity onPress={handleSave} disabled={saving} hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}>
             {saving ? <ActivityIndicator color={Colors.primary} /> : <Text style={styles.save}>שמור</Text>}
           </TouchableOpacity>
         </View>
 
-        <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           <Text style={styles.sectionLabel}>שם השנה</Text>
           <TextInput
             style={styles.input}
@@ -133,13 +134,36 @@ export function AcademicYearModal({ visible, current, onClose, onSave }: Academi
             </Text>
           </View>
         </ScrollView>
-      </KeyboardAvoidingView>
+        </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.background },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: Platform.OS === 'web' ? '#000000' : Colors.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  root: { 
+    flex: 1, 
+    backgroundColor: Colors.background,
+    width: '100%',
+    maxWidth: Platform.OS === 'web' ? 480 : undefined,
+    alignSelf: 'center',
+    ...Platform.select({
+      web: {
+        borderLeftWidth: 1,
+        borderRightWidth: 1,
+        borderColor: '#333',
+        shadowColor: '#000',
+        shadowOpacity: 0.5,
+        shadowRadius: 50,
+      }
+    })
+  },
   handle: {
     width: 40, height: 4, borderRadius: 2,
     backgroundColor: Colors.border,

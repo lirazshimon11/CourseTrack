@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Course, Semester, ScheduleSlot, AcademicYear } from '../types';
+import { Course, Semester, AcademicYear, SlotData } from '../types';
 import { generateSessions } from '../lib/dateUtils';
 
 export function useCourses(academicYearId?: string | null) {
@@ -9,20 +9,15 @@ export function useCourses(academicYearId?: string | null) {
 
   const fetchCourses = async () => {
     setLoading(true);
-    let query = supabase
+    const { data, error } = await supabase
       .from('courses')
-      .select('*, slots:schedule_slots(*)')
-      .order('order_index', { ascending: true })
-      .order('created_at', { ascending: true });
+      .select('*')
+      .order('order_index', { ascending: true });
 
-    if (academicYearId) {
-      query = query.eq('academic_year_id', academicYearId);
-    }
-
-    const { data, error } = await query;
-
-    if (!error && data) {
-      setCourses(data);
+    if (error) {
+      console.error('Error fetching courses:', error);
+    } else if (data) {
+      setCourses(data as Course[]);
     }
     setLoading(false);
   };
@@ -36,39 +31,29 @@ export function useCourses(academicYearId?: string | null) {
     semester: Semester,
     color: string,
     academicYearId: string | null,
-    lectureSlots: Omit<ScheduleSlot, 'id' | 'course_id'>[],
-    exerciseSlots: Omit<ScheduleSlot, 'id' | 'course_id'>[],
+    lectureSlots: SlotData[],
+    exerciseSlots: SlotData[],
     academicYear: AcademicYear | null
   ) => {
-    // Get next order index
-    const nextOrder = courses.length > 0 
-      ? Math.max(...courses.map(c => c.order_index || 0)) + 1 
+    const nextOrder = courses.length > 0
+      ? Math.max(...courses.map(c => c.order_index || 0)) + 1
       : 0;
+
+    const slots_data = [
+      ...lectureSlots.map(s => ({ ...s, type: 'lecture' as const })),
+      ...exerciseSlots.map(s => ({ ...s, type: 'exercise' as const })),
+    ];
 
     const { data: course, error: cErr } = await supabase
       .from('courses')
-      .insert({ name, semester, color, order_index: nextOrder, academic_year_id: academicYearId })
+      .insert({ name, semester, color, order_index: nextOrder, academic_year_id: academicYearId, slots_data })
       .select()
       .single();
 
     if (cErr) return { error: cErr };
 
-    // Insert slots
-    const slotsToInsert = [
-      ...lectureSlots.map(s => ({ ...s, course_id: course.id, type: 'lecture' })),
-      ...exerciseSlots.map(s => ({ ...s, course_id: course.id, type: 'exercise' })),
-    ];
-
-    const { data: slots, error: sErr } = await supabase
-      .from('schedule_slots')
-      .insert(slotsToInsert)
-      .select();
-
-    if (sErr) return { error: sErr };
-
-    // Generate sessions if academic year provides dates
     if (academicYear) {
-      const sessionObjects = generateSessions(course.id, slots, academicYear, semester);
+      const sessionObjects = generateSessions(course.id, slots_data, academicYear, semester);
       const { error: sessErr } = await supabase.from('sessions').insert(sessionObjects);
       if (sessErr) {
         console.error('Session generation error:', sessErr);
@@ -80,6 +65,9 @@ export function useCourses(academicYearId?: string | null) {
   };
 
   const deleteCourse = async (courseId: string) => {
+    // Sessions will be deleted automatically due to CASCADE if FK is set, 
+    // but just in case or if no FK, we delete manually
+    await supabase.from('sessions').delete().eq('course_id', courseId);
     const { error } = await supabase.from('courses').delete().eq('id', courseId);
     if (error) return { error };
     setCourses(prev => prev.filter(c => c.id !== courseId));
@@ -87,73 +75,62 @@ export function useCourses(academicYearId?: string | null) {
   };
 
   const updateCourse = async (
-    id: string, 
-    name: string, 
+    id: string,
+    name: string,
     semester: Semester,
     color: string,
-    lectureSlots: Omit<ScheduleSlot, 'id' | 'course_id'>[],
-    exerciseSlots: Omit<ScheduleSlot, 'id' | 'course_id'>[]
+    lectureSlots: SlotData[],
+    exerciseSlots: SlotData[]
   ) => {
     try {
-      // 1. Update basic course info
+      const slots_data = [
+        ...lectureSlots.map(s => ({ ...s, type: 'lecture' as const })),
+        ...exerciseSlots.map(s => ({ ...s, type: 'exercise' as const })),
+      ];
+
       const { error: cErr } = await supabase
         .from('courses')
-        .update({ name, semester, color })
+        .update({ name, semester, color, slots_data })
         .eq('id', id);
 
       if (cErr) throw cErr;
 
-      // 2. Update slots: Delete old ones and insert new ones
-      const { error: dErr } = await supabase
-        .from('schedule_slots')
-        .delete()
-        .eq('course_id', id);
-
-      if (dErr) throw dErr;
-
-      const slotsToInsert = [
-        ...lectureSlots.map(s => ({ ...s, course_id: id, type: 'lecture' })),
-        ...exerciseSlots.map(s => ({ ...s, course_id: id, type: 'exercise' })),
-      ];
-
-      const { data: slots, error: sErr } = await supabase
-        .from('schedule_slots')
-        .insert(slotsToInsert)
-        .select();
-
-      if (sErr) throw sErr;
-
-      // 3. Update existing sessions' times AND dates
       const { data: currentSessions, error: fetchSessErr } = await supabase
         .from('sessions')
         .select('*')
         .eq('course_id', id);
 
       if (!fetchSessErr && currentSessions) {
-        // Group new slots by type and sort by day to maintain consistent indexing
-        const newLectures = slots.filter(s => s.type === 'lecture').sort((a, b) => a.day_of_week - b.day_of_week);
-        const newExercises = slots.filter(s => s.type === 'exercise').sort((a, b) => a.day_of_week - b.day_of_week);
+        const newLectures = slots_data.filter(s => s.type === 'lecture').sort((a, b) => a.day_of_week - b.day_of_week);
+        const newExercises = slots_data.filter(s => s.type === 'exercise').sort((a, b) => a.day_of_week - b.day_of_week);
 
         for (const sess of currentSessions) {
-          const sessDate = new Date(sess.date);
-          // Find Sunday of the week this session is in
+          const [sessY, sessM, sessD] = sess.date.split('-').map(Number);
+          const sessDate = new Date(sessY, sessM - 1, sessD, 12, 0, 0);
+
           const sun = new Date(sessDate);
           sun.setDate(sessDate.getDate() - sessDate.getDay());
-          
+
           const slotsOfThisType = sess.type === 'lecture' ? newLectures : newExercises;
-          
-          // Determine which slot this session likely belongs to by its chronological index within that week
+
           const weekSessions = currentSessions
-            .filter(s => s.type === sess.type && s.date >= sun.toISOString().split('T')[0] && s.date < new Date(sun.getTime() + 7 * 86400000).toISOString().split('T')[0])
+            .filter(s => {
+              const [sy, sm, sd] = s.date.split('-').map(Number);
+              const sdDate = new Date(sy, sm - 1, sd, 12, 0, 0);
+              const sdSun = new Date(sdDate);
+              sdSun.setDate(sdDate.getDate() - sdDate.getDay());
+              return s.type === sess.type && sdSun.getTime() === sun.getTime();
+            })
             .sort((a, b) => a.date.localeCompare(b.date));
-          
+
           const sessIndex = weekSessions.findIndex(s => s.id === sess.id);
           const matchingSlot = slotsOfThisType[sessIndex] || slotsOfThisType[0];
 
           if (matchingSlot) {
             const newDate = new Date(sun);
             newDate.setDate(sun.getDate() + matchingSlot.day_of_week);
-            
+            if (newDate.getHours() !== 12) newDate.setHours(12, 0, 0, 0);
+
             const yyyy = newDate.getFullYear();
             const mm = String(newDate.getMonth() + 1).padStart(2, '0');
             const dd = String(newDate.getDate()).padStart(2, '0');
@@ -161,11 +138,10 @@ export function useCourses(academicYearId?: string | null) {
 
             await supabase
               .from('sessions')
-              .update({ 
+              .update({
                 date: dateStr,
-                start_time: matchingSlot.start_time, 
-                end_time: matchingSlot.end_time,
-                slot_id: matchingSlot.id
+                start_time: matchingSlot.start_time,
+                end_time: matchingSlot.end_time
               })
               .eq('id', sess.id);
           }
@@ -174,9 +150,9 @@ export function useCourses(academicYearId?: string | null) {
 
       await fetchCourses();
       return { success: true };
-    } catch (e) {
-      console.error('Error updating course:', e);
-      return { error: e };
+    } catch (err) {
+      console.error('Update course error:', err);
+      return { error: err };
     }
   };
 
@@ -186,11 +162,8 @@ export function useCourses(academicYearId?: string | null) {
   };
 
   const reorderCourses = async (newOrderedCourses: Course[]) => {
-    // 1. Update local state immediately for responsiveness
     setCourses(newOrderedCourses);
 
-    // 2. Prepare only the necessary fields for update
-    // We only send id and order_index to avoid schema/constraint issues with joined data
     const updates = newOrderedCourses.map((c, i) => ({
       id: c.id,
       name: c.name,
@@ -205,30 +178,35 @@ export function useCourses(academicYearId?: string | null) {
       if (error) throw error;
     } catch (error) {
       console.error('Reorder error:', error);
-      fetchCourses(); // Rollback if DB update fails
+      fetchCourses();
     }
   };
 
   const moveCourse = async (id: string, direction: 'up' | 'down') => {
     const index = courses.findIndex(c => c.id === id);
     if (index === -1) return;
-    
+
     const newCourses = [...courses];
     const targetIndex = direction === 'up' ? index - 1 : index + 1;
-    
+
     if (targetIndex < 0 || targetIndex >= courses.length) return;
-    
-    // Swap
+
     [newCourses[index], newCourses[targetIndex]] = [newCourses[targetIndex], newCourses[index]];
-    
+
     await reorderCourses(newCourses);
   };
 
   const recreateSessions = async (courseId: string) => {
-    const course = courses.find(c => c.id === courseId);
-    if (!course || !course.academic_year_id) return { error: 'Course or Academic Year not found' };
+    // Fetch the latest course data directly to ensure we have the slots_data updated via SQL
+    const { data: course, error: cErr } = await supabase
+      .from('courses')
+      .select('*')
+      .eq('id', courseId)
+      .single();
 
-    // 1. Fetch academic year details
+    if (cErr || !course) return { error: 'Course not found' };
+    if (!course.academic_year_id) return { error: 'Academic Year not linked' };
+
     const { data: ay, error: ayErr } = await supabase
       .from('academic_years')
       .select('*')
@@ -237,18 +215,31 @@ export function useCourses(academicYearId?: string | null) {
 
     if (ayErr) return { error: ayErr };
 
-    // 2. Fetch current slots
-    const { data: slots, error: sErr } = await supabase
-      .from('schedule_slots')
-      .select('*')
-      .eq('course_id', courseId);
+    const slots_data = course.slots_data || [];
+    console.log(`Regenerating ${course.name} with ${slots_data.length} slots`);
 
-    if (sErr) return { error: sErr };
+    if (slots_data.length === 0) {
+      return { error: 'No slots defined for this course. Please edit the course and add hours.' };
+    }
+    const sem = String(course.semester).trim();
+    let startDateStr = ay.semester_a_start;
+    let endDateStr = ay.semester_a_end;
 
-    // 3. Generate new session objects
-    const newSessionObjects = generateSessions(courseId, slots, ay, course.semester);
+    if (sem === 'ב') {
+      startDateStr = ay.semester_b_start;
+      endDateStr = ay.semester_b_end;
+    } else if (sem === 'קיץ' || sem === 'ג') {
+      startDateStr = ay.semester_c_start;
+      endDateStr = ay.semester_c_end;
+    }
 
-    // 4. Fetch existing sessions to preserve notes/attendance
+    if (!startDateStr || !endDateStr) {
+      return { error: `תאריכי סמסטר ${sem} לא מוגדרים במערכת עבור שנת הלימודים הזו. אנא הגדר אותם בהגדרות השנה האקדמית.` };
+    }
+
+    const newSessionObjects = generateSessions(courseId, slots_data, ay, course.semester);
+    console.log(`Generated ${newSessionObjects.length} sessions using dates: ${startDateStr} to ${endDateStr}`);
+
     const { data: existingSessions, error: esErr } = await supabase
       .from('sessions')
       .select('*')
@@ -256,13 +247,12 @@ export function useCourses(academicYearId?: string | null) {
 
     if (esErr) return { error: esErr };
 
-    // 5. Delete old sessions
-    await supabase.from('sessions').delete().eq('course_id', courseId);
+    const { error: delErr } = await supabase.from('sessions').delete().eq('course_id', courseId);
+    if (delErr) return { error: delErr };
 
-    // 6. Map notes/attendance back to new sessions if they share the same session number and type
     const finalSessions = newSessionObjects.map(newSess => {
-      const match = existingSessions.find(oldS => 
-        oldS.type === newSess.type && 
+      const match = existingSessions.find(oldS =>
+        oldS.type === newSess.type &&
         oldS.session_number === newSess.session_number
       );
       if (match) {
@@ -276,24 +266,25 @@ export function useCourses(academicYearId?: string | null) {
       return newSess;
     });
 
-    // 7. Insert fixed sessions
-    const { error: insErr } = await supabase.from('sessions').insert(finalSessions);
-    
-    if (insErr) return { error: insErr };
-    
-    return { success: true };
+    if (finalSessions.length > 0) {
+      const { error: insErr } = await supabase.from('sessions').insert(finalSessions);
+      if (insErr) return { error: insErr };
+    }
+
+    await fetchCourses();
+    return { success: true, count: finalSessions.length };
   };
 
-  return { 
-    courses, 
-    loading, 
-    createCourse, 
-    deleteCourse, 
-    updateCourse, 
+  return {
+    courses,
+    loading,
+    createCourse,
+    deleteCourse,
+    updateCourse,
     reorderCourses,
     moveCourse,
-    deleteAllData, 
+    deleteAllData,
     recreateSessions,
-    refetch: fetchCourses 
+    refetch: fetchCourses
   };
 }

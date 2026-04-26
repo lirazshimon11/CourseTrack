@@ -15,7 +15,7 @@ import { CourseActionMenu } from '../components/CourseActionMenu';
 import { SuccessToast } from '../components/SuccessToast';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { JSReorderList } from '../components/JSReorderList';
-import { Semester, ScheduleSlot, Course } from '../types';
+import { Semester, Course, SlotData } from '../types';
 
 const HomeScreen = () => {
   const router = useRouter();
@@ -35,8 +35,8 @@ const HomeScreen = () => {
     name: string,
     semester: Semester,
     color: string,
-    lectureSlots: Omit<ScheduleSlot, 'id' | 'course_id'>[],
-    exerciseSlots: Omit<ScheduleSlot, 'id' | 'course_id'>[]
+    lectureSlots: SlotData[],
+    exerciseSlots: SlotData[]
   ) => {
     if (courseToEdit) {
       const res = await updateCourse(courseToEdit.id, name, semester, color, lectureSlots, exerciseSlots);

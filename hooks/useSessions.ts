@@ -54,13 +54,13 @@ export const useSessions = (courseId: string | undefined, type: SessionType) => 
 
     // Optimistic update
     setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, notes, updated_at: now } : s));
-    
+
     try {
       const { data, error } = await supabase
         .from('sessions')
-        .update({ 
-          notes, 
-          updated_at: now 
+        .update({
+          notes,
+          updated_at: now
         })
         .eq('id', sessionId)
         .select()
@@ -71,18 +71,18 @@ export const useSessions = (courseId: string | undefined, type: SessionType) => 
         fetchSessions(); // Rollback
         return { error };
       }
-      
+
       if (!data) {
         console.warn('UPDATE SUCCESSFUL BUT NO DATA RETURNED - check RLS policies!');
         // Even if no data returned, if no error, it might have worked but we can't be sure
       }
 
       console.log('UPDATE COMPLETED SUCCESSFULLY:', data);
-      
+
       if (data) {
         setSessions(prev => prev.map(s => s.id === sessionId ? data : s));
       }
-      
+
       return { success: true, session: data || { id: sessionId, notes, updated_at: now } };
     } catch (e) {
       console.error('FATAL ERROR DURING UPDATE:', e);

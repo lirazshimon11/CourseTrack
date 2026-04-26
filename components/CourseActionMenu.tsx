@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Pressable, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Pressable, Dimensions, Modal } from 'react-native';
 import { Colors, Spacing, Radius, FontSize } from '../constants/theme';
 import { Course } from '../types';
 
@@ -33,22 +33,24 @@ export const CourseActionMenu = ({ course, position, visible, onClose, onDelete,
   if (top < 50) top = 50;
 
   return (
-    <View style={styles.overlayRoot} pointerEvents="box-none">
-      <Pressable style={styles.backdrop} onPress={onClose} />
-      <View style={[styles.menuCard, { top, left, width: menuWidth }]}>
-        <TouchableOpacity style={styles.menuItem} onPress={() => { onClose(); onEdit(course); }}>
-          <Text style={styles.menuItemText}>עריכה</Text>
-          <Text style={styles.menuItemIcon}>✏️</Text>
-        </TouchableOpacity>
+    <Modal visible={visible} transparent animationType="none">
+      <View style={styles.overlayRoot} pointerEvents="box-none">
+        <Pressable style={styles.backdrop} onPress={onClose} />
+        <View style={[styles.menuCard, { top, left, width: menuWidth }]}>
+          <TouchableOpacity style={styles.menuItem} onPress={() => { onClose(); onEdit(course); }}>
+            <Text style={styles.menuItemText}>עריכה</Text>
+            <Text style={styles.menuItemIcon}>✏️</Text>
+          </TouchableOpacity>
 
-        <View style={styles.divider} />
+          <View style={styles.divider} />
 
-        <TouchableOpacity style={styles.menuItem} onPress={() => { onClose(); onDelete(course.id); }}>
-          <Text style={[styles.menuItemText, styles.deleteText]}>מחיקה</Text>
-          <Text style={[styles.menuItemIcon, styles.deleteText]}>🗑️</Text>
-        </TouchableOpacity>
+          <TouchableOpacity style={styles.menuItem} onPress={() => { onClose(); onDelete(course.id); }}>
+            <Text style={[styles.menuItemText, styles.deleteText]}>מחיקה</Text>
+            <Text style={[styles.menuItemIcon, styles.deleteText]}>🗑️</Text>
+          </TouchableOpacity>
+        </View>
       </View>
-    </View>
+    </Modal>
   );
 };
 
@@ -77,6 +79,9 @@ const styles = StyleSheet.create({
     elevation: 20,
     // Content inside stays RTL for Hebrew
     direction: 'rtl',
+    // On web, we need to ensure it stays within the phone-sized container
+    // but pivot coordinates are likely window-based.
+    // If it's problematic, we might need to adjust 'left'.
   },
   menuItem: {
     flexDirection: 'row',

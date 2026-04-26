@@ -14,6 +14,13 @@ export interface AcademicYear {
   created_at: string;
 }
 
+export interface SlotData {
+  type: SessionType;
+  day_of_week: number;
+  start_time: string;
+  end_time: string;
+}
+
 export interface Course {
   id: string;
   name: string;
@@ -22,22 +29,12 @@ export interface Course {
   order_index: number;
   academic_year_id: string | null;
   created_at: string;
-  slots?: ScheduleSlot[];
-}
-
-export interface ScheduleSlot {
-  id: string;
-  course_id: string;
-  type: SessionType;
-  day_of_week: number; // 0=Sunday, 6=Saturday
-  start_time: string; // "HH:MM"
-  end_time: string;   // "HH:MM"
+  slots_data: SlotData[];
 }
 
 export interface Session {
   id: string;
   course_id: string;
-  slot_id: string | null;
   type: SessionType;
   date: string; // "YYYY-MM-DD"
   start_time: string;
@@ -50,9 +47,6 @@ export interface Session {
   created_at: string;
 }
 
-export interface CourseWithSlots extends Course {
-  schedule_slots: ScheduleSlot[];
-}
 
 export interface GroupedSessions {
   weekNumber: number;

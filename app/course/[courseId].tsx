@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  FlatList, ActivityIndicator,
+  FlatList, ActivityIndicator, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -11,8 +11,9 @@ import { useSessions } from '../../hooks/useSessions';
 import { useCourses } from '../../hooks/useCourses';
 import { SessionDetailSheet } from '../../components/SessionDetailSheet';
 import { WeekSection } from '../../components/WeekSection';
-import { Session, AttendanceStatus, SessionType } from '../../types';
+import { Session, AttendanceStatus, SessionType, Course } from '../../types';
 import { groupSessionsByWeek } from '../../lib/dateUtils';
+import { CreateCourseModal } from '../../components/CreateCourseModal';
 
 type TabType = 'lecture' | 'exercise';
 type FilterType = 'all' | 'attended' | 'missed';
@@ -20,28 +21,51 @@ type FilterType = 'all' | 'attended' | 'missed';
 const CourseScreen = () => {
   const { courseId } = useLocalSearchParams<{ courseId: string }>();
   const router = useRouter();
-  const { courses } = useCourses();
+  const { courses, recreateSessions } = useCourses();
   const course = courses.find(c => c.id === courseId);
 
   const [activeTab, setActiveTab] = useState<TabType>('lecture');
   const [activeFilter, setActiveFilter] = useState<FilterType>('all');
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
+  const [isCourseInfoVisible, setIsCourseInfoVisible] = useState(false);
 
-  const { sessions, loading, updateAttendance, updateNotes } = useSessions(courseId, activeTab);
+  const { sessions, loading: loadingSessions, updateAttendance, updateNotes, refresh: refreshSessions } = useSessions(courseId, activeTab);
+  const [isRegenerating, setIsRegenerating] = useState(false);
+  const [hasAttemptedRegen, setHasAttemptedRegen] = useState(false);
 
-  const filteredSessions = useMemo(() => {
-    if (activeFilter === 'all') return sessions;
-    return sessions.filter(s => s.attendance === activeFilter);
-  }, [sessions, activeFilter]);
+  // Auto-regenerate sessions if list is empty
+  React.useEffect(() => {
+    const triggerRegen = async () => {
+      if (!loadingSessions && sessions.length === 0 && !hasAttemptedRegen && courseId) {
+        setHasAttemptedRegen(true);
+        setIsRegenerating(true);
+        console.log('Detected empty sessions, triggering auto-regen...');
+        try {
+          const res = await recreateSessions(courseId);
+          if (res.success) {
+            await refreshSessions();
+          } else if (res.error) {
+            Alert.alert('שיומת לב', (res.error as any).message || String(res.error));
+          }
+        } catch (err: any) {
+          console.error('Auto-regen error:', err);
+          Alert.alert('שגיאה', 'משהו השתבש ביצירת המפגשים');
+        } finally {
+          setIsRegenerating(false);
+        }
+      }
+    };
+    triggerRegen();
+  }, [loadingSessions, sessions.length, courseId, hasAttemptedRegen]);
 
-  const grouped = useMemo(() => groupSessionsByWeek(filteredSessions), [filteredSessions]);
+  const grouped = useMemo(() => groupSessionsByWeek(sessions), [sessions]);
 
   const listRef = React.useRef<FlatList>(null);
 
   const initialIndex = useMemo(() => {
     if (grouped.length === 0) return 0;
     const today = new Date().toISOString().split('T')[0];
-    const index = grouped.findIndex(week => 
+    const index = grouped.findIndex(week =>
       week.sessions.some(s => s.date >= today)
     );
     return index === -1 ? grouped.length - 1 : index;
@@ -99,17 +123,26 @@ const CourseScreen = () => {
     <SafeAreaView style={styles.root} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="arrow-forward" size={24} color={semesterColor} />
+        <TouchableOpacity
+          onPress={() => router.canGoBack() ? router.back() : router.replace('/')}
+          style={styles.backBtn}
+          hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+          activeOpacity={0.6}
+        >
+          <Ionicons name="arrow-forward" size={28} color={semesterColor} />
         </TouchableOpacity>
-        <View style={styles.headerTitle}>
+        <TouchableOpacity
+          style={styles.headerTitle}
+          onPress={() => setIsCourseInfoVisible(true)}
+          activeOpacity={0.7}
+        >
           <Text style={styles.courseName} numberOfLines={1}>{course?.name ?? '...'}</Text>
           {course && (
             <View style={[styles.semBadge, { backgroundColor: semesterColor + '22', borderColor: semesterColor + '55' }]}>
               <Text style={[styles.semBadgeText, { color: semesterColor }]}>סמסטר {course.semester}'</Text>
             </View>
           )}
-        </View>
+        </TouchableOpacity>
       </View>
 
       {/* Tabs: הרצאות / תרגולים */}
@@ -143,9 +176,12 @@ const CourseScreen = () => {
       </View>
 
       {/* Content */}
-      {loading ? (
+      {(loadingSessions || isRegenerating) ? (
         <View style={styles.center}>
           <ActivityIndicator color={semesterColor} size="large" />
+          {isRegenerating && (
+            <Text style={[styles.loadingText, { color: semesterColor }]}>מייצר את המפגשים בפעם הראשונה...</Text>
+          )}
         </View>
       ) : grouped.length === 0 ? (
         <View style={styles.emptyState}>
@@ -155,6 +191,14 @@ const CourseScreen = () => {
               ? `אין ${activeFilter === 'attended' ? 'נצפות' : 'לא נצפות'} עדיין`
               : `אין ${activeTab === 'lecture' ? 'הרצאות' : 'תרגולים'} מוגדרים`}
           </Text>
+          {activeFilter === 'all' && (
+            <TouchableOpacity
+              style={[styles.regenBtn, { borderColor: semesterColor }]}
+              onPress={() => recreateSessions(courseId)}
+            >
+              <Text style={[styles.regenBtnText, { color: semesterColor }]}>📅 יצירת רשימה מחדש</Text>
+            </TouchableOpacity>
+          )}
         </View>
       ) : (
         <FlatList
@@ -190,6 +234,15 @@ const CourseScreen = () => {
         onStatusChange={handleAttendanceChange}
         themeColor={semesterColor}
       />
+
+      <CreateCourseModal
+        visible={isCourseInfoVisible}
+        courseToEdit={course}
+        readOnly={true}
+        onClose={() => setIsCourseInfoVisible(false)}
+        academicYear={null}
+        onSave={async () => ({ success: true })}
+      />
     </SafeAreaView>
   );
 };
@@ -206,7 +259,12 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.border,
   },
   backBtn: {
-    padding: Spacing.xs,
+    width: 48,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: -Spacing.xs,
+    zIndex: 100,
   },
   backIcon: {
     fontSize: 28,
@@ -301,6 +359,24 @@ const styles = StyleSheet.create({
     fontSize: FontSize.lg,
     fontFamily: 'Heebo_600SemiBold',
     color: Colors.textMuted,
+    textAlign: 'center',
+    marginBottom: Spacing.md,
+  },
+  regenBtn: {
+    borderWidth: 1.5,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+  },
+  regenBtnText: {
+    fontSize: FontSize.md,
+    fontFamily: 'Heebo_700Bold',
+  },
+  loadingText: {
+    marginTop: Spacing.md,
+    fontSize: FontSize.md,
+    fontFamily: 'Heebo_500Medium',
     textAlign: 'center',
   },
 });

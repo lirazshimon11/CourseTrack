@@ -18,7 +18,21 @@ I18nManager.forceRTL(true);
 if (Platform.OS === 'web') {
   if (typeof document !== 'undefined') {
     document.documentElement.dir = 'rtl';
-    document.body.style.backgroundColor = '#050505'; // Dark background outside the "phone"
+    document.documentElement.style.backgroundColor = '#000000';
+    document.body.style.backgroundColor = '#000000';
+    
+    // Hide scrollbars globally on web
+    const style = document.createElement('style');
+    style.textContent = `
+      ::-webkit-scrollbar {
+        display: none;
+      }
+      * {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
+    `;
+    document.head.appendChild(style);
   }
 }
 
@@ -70,7 +84,10 @@ const styles = StyleSheet.create({
         borderLeftWidth: 1,
         borderRightWidth: 1,
         borderColor: '#333333',
-        boxShadow: '0 0 50px rgba(0,0,0,0.5)',
+        boxShadow: '0 0 100px rgba(0,0,0,0.8)',
+        marginVertical: 20,
+        borderRadius: 40,
+        overflow: 'hidden',
       }
     })
   }
