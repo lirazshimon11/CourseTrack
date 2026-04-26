@@ -21,11 +21,14 @@ export function groupSessionsByWeek(sessions: Session[]) {
   const groups: { [key: string]: Session[] } = {};
   
   sessions.forEach(session => {
-    const date = new Date(session.date);
+    const [y, m, d] = session.date.split('-').map(Number);
+    const date = new Date(y, m - 1, d, 12, 0, 0); // Noon to avoid DST issues
+    
     // Find the Sunday of the week
-    const diff = date.getDate() - date.getDay();
+    const day = date.getDay();
     const sunday = new Date(date);
-    sunday.setDate(diff);
+    sunday.setDate(date.getDate() - day);
+    
     const weekKey = sunday.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit' });
     
     if (!groups[weekKey]) groups[weekKey] = [];
@@ -71,8 +74,12 @@ export function generateSessions(
   
   if (!startDateStr || !endDateStr) return [];
   
-  const start = new Date(startDateStr);
-  const end = new Date(endDateStr);
+  // Parse dates as YYYY-MM-DD components to avoid timezone issues
+  const [startY, startM, startD] = startDateStr.split('-').map(Number);
+  const [endY, endM, endD] = endDateStr.split('-').map(Number);
+  
+  const start = new Date(startY, startM - 1, startD, 12, 0, 0);
+  const end = new Date(endY, endM - 1, endD, 12, 0, 0);
   
   slots.forEach((slot) => {
     let current = new Date(start);
@@ -83,11 +90,17 @@ export function generateSessions(
     
     let weekNum = 1;
     while (current <= end) {
+      // Manually format to YYYY-MM-DD to avoid toISOString UTC shift
+      const y = current.getFullYear();
+      const m = String(current.getMonth() + 1).padStart(2, '0');
+      const d = String(current.getDate()).padStart(2, '0');
+      const dateStr = `${y}-${m}-${d}`;
+
       sessions.push({
         course_id: courseId,
         slot_id: slot.id,
         type: slot.type as SessionType,
-        date: current.toISOString().split('T')[0],
+        date: dateStr,
         start_time: slot.start_time,
         end_time: slot.end_time,
         week_number: weekNum,

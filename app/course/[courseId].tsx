@@ -36,6 +36,31 @@ const CourseScreen = () => {
 
   const grouped = useMemo(() => groupSessionsByWeek(filteredSessions), [filteredSessions]);
 
+  const listRef = React.useRef<FlatList>(null);
+
+  const initialIndex = useMemo(() => {
+    if (grouped.length === 0) return 0;
+    const today = new Date().toISOString().split('T')[0];
+    const index = grouped.findIndex(week => 
+      week.sessions.some(s => s.date >= today)
+    );
+    return index === -1 ? grouped.length - 1 : index;
+  }, [grouped]);
+
+  React.useEffect(() => {
+    if (grouped.length > 0 && initialIndex > 0) {
+      // Small delay to ensure list is rendered
+      const timer = setTimeout(() => {
+        listRef.current?.scrollToIndex({
+          index: initialIndex,
+          animated: false,
+          viewPosition: 0,
+        });
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [grouped.length]);
+
   const allCount = sessions.length;
   const attendedCount = sessions.filter(s => s.attendance === 'attended').length;
   const missedCount = sessions.filter(s => s.attendance === 'missed').length;
@@ -133,9 +158,16 @@ const CourseScreen = () => {
         </View>
       ) : (
         <FlatList
+          ref={listRef}
           data={grouped}
           extraData={sessions}
           keyExtractor={item => String(item.weekNumber)}
+          onScrollToIndexFailed={info => {
+            const wait = new Promise(resolve => setTimeout(resolve, 500));
+            wait.then(() => {
+              listRef.current?.scrollToIndex({ index: info.index, animated: false });
+            });
+          }}
           renderItem={({ item }) => (
             <WeekSection
               weekNumber={item.weekNumber}

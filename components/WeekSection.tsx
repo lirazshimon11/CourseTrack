@@ -26,6 +26,7 @@ export function WeekSection({ weekNumber, sessions, onSessionPress, onStatusChan
           session={session}
           onPress={() => onSessionPress(session)}
           onStatusChange={(status) => onStatusChange(session.id, status)}
+          themeColor={themeColor}
         />
       ))}
     </View>
