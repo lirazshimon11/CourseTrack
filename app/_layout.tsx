@@ -18,8 +18,8 @@ I18nManager.forceRTL(true);
 if (Platform.OS === 'web') {
   if (typeof document !== 'undefined') {
     document.documentElement.dir = 'rtl';
-    document.documentElement.style.backgroundColor = '#000000';
-    document.body.style.backgroundColor = '#000000';
+    document.documentElement.style.backgroundColor = Colors.background;
+    document.body.style.backgroundColor = Colors.background;
     
     // Hide scrollbars globally on web
     const style = document.createElement('style');
@@ -69,7 +69,7 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: Platform.OS === 'web' ? '#000000' : Colors.background,
+    backgroundColor: Colors.background,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -78,12 +78,9 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: Platform.OS === 'web' ? 480 : undefined,
     backgroundColor: Colors.background,
-    // Add shadow and border logic for web to feel like a "phone"
+    paddingTop: 30, // Move everything down as requested
     ...Platform.select({
       web: {
-        borderLeftWidth: 1,
-        borderRightWidth: 1,
-        borderColor: '#333333',
         marginVertical: 0,
         borderRadius: 0,
         overflow: 'hidden',
