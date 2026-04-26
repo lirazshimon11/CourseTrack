@@ -20,7 +20,7 @@ if (Platform.OS === 'web') {
     document.documentElement.dir = 'rtl';
     document.documentElement.style.backgroundColor = Colors.background;
     document.body.style.backgroundColor = Colors.background;
-    
+
     // Hide scrollbars globally on web
     const style = document.createElement('style');
     style.textContent = `
@@ -78,7 +78,7 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: Platform.OS === 'web' ? 480 : undefined,
     backgroundColor: Colors.background,
-    paddingTop: 30, // Move everything down as requested
+    paddingTop: 22, // Move everything down as requested
     ...Platform.select({
       web: {
         marginVertical: 0,
