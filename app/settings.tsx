@@ -11,13 +11,40 @@ import { supabase } from '../lib/supabase';
 
 const SettingsScreen = () => {
   const router = useRouter();
-  const { deleteAllData } = useCourses();
+  const { courses, deleteAllData, recreateSessions } = useCourses();
   const [deleting, setDeleting] = useState(false);
+  const [fixing, setFixing] = useState(false);
+
+  const handleFixDates = async () => {
+    Alert.alert(
+      'תיקון תאריכים',
+      'פעולה זו תחשב מחדש את תאריכי כל המפגשים בכל הקורסים בהתאם להגדרות השנה האקדמית.\nההערות והנוכחות שלך יישמרו.',
+      [
+        { text: 'ביטול', style: 'cancel' },
+        { 
+          text: 'תקן עכשיו', 
+          onPress: async () => {
+            setFixing(true);
+            try {
+              for (const course of courses) {
+                await recreateSessions(course.id);
+              }
+              Alert.alert('הצלחה', 'כל התאריכים תוקנו בהצלחה!');
+            } catch (err) {
+              Alert.alert('שגיאה', 'חלק מהתאריכים לא תוקנו עקב שגיאה.');
+            } finally {
+              setFixing(false);
+            }
+          }
+        }
+      ]
+    );
+  };
 
   const handleDeleteAll = () => {
     Alert.alert(
       'מחיקת כל הנתונים',
-      'פעולה זו תמחק את כל הקורסים, המפגשים וההערות שלך לצמיתות.\nאין דרך חזרה.',
+      'פעולה זו תמחוק את כל הקורסים, המפגשים וההערות שלך לצמיתות.\nאין דרך חזרה.',
       [
         { text: 'ביטול', style: 'cancel' },
         {
@@ -78,6 +105,21 @@ const SettingsScreen = () => {
           <Text style={styles.version}>גרסה 1.0.0</Text>
         </View>
 
+        {/* Tools Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>כלים</Text>
+          <TouchableOpacity 
+            style={styles.toolBtn} 
+            onPress={handleFixDates}
+            disabled={fixing}
+          >
+            {fixing 
+              ? <ActivityIndicator color={Colors.primaryLight} />
+              : <Text style={styles.toolBtnText}>📅  תקן סחיפת תאריכים (Fix Date Drift)</Text>
+            }
+          </TouchableOpacity>
+        </View>
+
         {/* Danger zone */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>אזור מסוכן</Text>
@@ -103,7 +145,8 @@ const SettingsScreen = () => {
       </View>
     </SafeAreaView>
   );
-};
+}
+;
 
 export default SettingsScreen;
 
@@ -162,7 +205,7 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
     fontFamily: 'Heebo_700Bold',
     color: Colors.textMuted,
-    textAlign: 'left',
+    textAlign: 'right',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: Spacing.xs,
@@ -191,7 +234,21 @@ const styles = StyleSheet.create({
     fontSize: FontSize.xs,
     fontFamily: 'Heebo_400Regular',
     color: Colors.textMuted,
-    textAlign: 'left',
+    textAlign: 'right',
     lineHeight: 18,
+  },
+  toolBtn: {
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Radius.md,
+    padding: Spacing.md,
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
+  },
+  toolBtnText: {
+    fontSize: FontSize.md,
+    fontFamily: 'Heebo_500Medium',
+    color: Colors.text,
   },
 });

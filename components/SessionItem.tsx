@@ -99,8 +99,8 @@ const SessionItemComponent = ({ session, onPress, onStatusChange, themeColor }: 
 
       <Animated.View
         style={[
-          styles.container, 
-          { transform: [{ translateX }], borderRightColor: getStatusColor() },
+          styles.container,
+          { transform: [{ translateX }], borderLeftColor: getStatusColor() },
           hasNotes && [styles.noteGlow, { borderColor: themeColor || Colors.primaryLight, shadowColor: themeColor || Colors.primaryLight }]
         ]}
         {...panResponder.panHandlers}
@@ -155,7 +155,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.md,
     flexDirection: 'row',
     alignItems: 'center',
-    borderRightWidth: 4,
+    borderLeftWidth: 4,
     elevation: 2,
     shadowColor: '#000',
     shadowOpacity: 0.1,
@@ -182,16 +182,16 @@ const styles = StyleSheet.create({
     fontFamily: 'Heebo_700Bold',
     color: Colors.text,
     marginBottom: 2,
-    textAlign: 'left',
+    textAlign: 'right',
   },
   subtitleLine: {
     fontSize: FontSize.sm,
     fontFamily: 'Heebo_400Regular',
     color: Colors.textSecondary,
-    textAlign: 'left',
+    textAlign: 'right',
   },
   statusSection: {
-    paddingLeft: Spacing.sm,
+    paddingRight: Spacing.sm,
   },
   statusToggle: {
     fontSize: 20,

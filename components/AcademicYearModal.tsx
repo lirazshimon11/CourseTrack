@@ -164,7 +164,7 @@ const styles = StyleSheet.create({
   sectionLabel: {
     fontSize: FontSize.sm, fontFamily: 'Heebo_600SemiBold',
     color: Colors.textSecondary, marginBottom: 4, marginTop: Spacing.sm,
-    textAlign: 'left',
+    textAlign: 'right',
   },
   input: {
     backgroundColor: Colors.surface,
@@ -187,7 +187,7 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
     fontFamily: 'Heebo_400Regular',
     color: Colors.textMuted,
-    textAlign: 'left',
+    textAlign: 'right',
     lineHeight: 20,
   },
 });

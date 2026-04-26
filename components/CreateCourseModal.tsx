@@ -222,7 +222,7 @@ const styles = StyleSheet.create({
   closeBtn: { color: Colors.primaryLight, fontSize: FontSize.md, fontFamily: 'Heebo_600SemiBold' },
   content: { padding: Spacing.md },
   section: { marginBottom: Spacing.xl },
-  label: { fontSize: FontSize.md, fontFamily: 'Heebo_600SemiBold', color: Colors.textSecondary, marginBottom: Spacing.sm, textAlign: 'left' },
+  label: { fontSize: FontSize.md, fontFamily: 'Heebo_600SemiBold', color: Colors.textSecondary, marginBottom: Spacing.sm, textAlign: 'right' },
   input: { backgroundColor: Colors.card, borderRadius: Radius.md, padding: Spacing.md, color: Colors.text, fontSize: FontSize.md, fontFamily: 'Heebo_400Regular', borderWidth: 1, borderColor: Colors.border, textAlign: 'right' },
   row: { flexDirection: 'row', gap: Spacing.sm },
   colorRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.md, justifyContent: 'center' },

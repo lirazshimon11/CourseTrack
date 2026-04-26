@@ -224,6 +224,66 @@ export function useCourses(academicYearId?: string | null) {
     await reorderCourses(newCourses);
   };
 
+  const recreateSessions = async (courseId: string) => {
+    const course = courses.find(c => c.id === courseId);
+    if (!course || !course.academic_year_id) return { error: 'Course or Academic Year not found' };
+
+    // 1. Fetch academic year details
+    const { data: ay, error: ayErr } = await supabase
+      .from('academic_years')
+      .select('*')
+      .eq('id', course.academic_year_id)
+      .single();
+
+    if (ayErr) return { error: ayErr };
+
+    // 2. Fetch current slots
+    const { data: slots, error: sErr } = await supabase
+      .from('schedule_slots')
+      .select('*')
+      .eq('course_id', courseId);
+
+    if (sErr) return { error: sErr };
+
+    // 3. Generate new session objects
+    const newSessionObjects = generateSessions(courseId, slots, ay, course.semester);
+
+    // 4. Fetch existing sessions to preserve notes/attendance
+    const { data: existingSessions, error: esErr } = await supabase
+      .from('sessions')
+      .select('*')
+      .eq('course_id', courseId);
+
+    if (esErr) return { error: esErr };
+
+    // 5. Delete old sessions
+    await supabase.from('sessions').delete().eq('course_id', courseId);
+
+    // 6. Map notes/attendance back to new sessions if they share the same session number and type
+    const finalSessions = newSessionObjects.map(newSess => {
+      const match = existingSessions.find(oldS => 
+        oldS.type === newSess.type && 
+        oldS.session_number === newSess.session_number
+      );
+      if (match) {
+        return {
+          ...newSess,
+          attendance: match.attendance,
+          notes: match.notes,
+          updated_at: match.updated_at
+        };
+      }
+      return newSess;
+    });
+
+    // 7. Insert fixed sessions
+    const { error: insErr } = await supabase.from('sessions').insert(finalSessions);
+    
+    if (insErr) return { error: insErr };
+    
+    return { success: true };
+  };
+
   return { 
     courses, 
     loading, 
@@ -233,6 +293,7 @@ export function useCourses(academicYearId?: string | null) {
     reorderCourses,
     moveCourse,
     deleteAllData, 
+    recreateSessions,
     refetch: fetchCourses 
   };
 }

@@ -224,7 +224,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Heebo_700Bold',
     color: Colors.text,
     flex: 1,
-    textAlign: 'left',
+    textAlign: 'right',
   },
   semBadge: {
     borderRadius: Radius.full,

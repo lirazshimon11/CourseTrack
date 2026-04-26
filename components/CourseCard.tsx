@@ -31,10 +31,10 @@ export function CourseCard({ course, onPress, onLongPress, dragTrigger }: Course
           style={styles.cardBody}
         >
           <View style={styles.content}>
-            <Text style={styles.name}>{course.name}</Text>
             <View style={[styles.semesterBadge, { backgroundColor: semesterColor + '22', borderColor: semesterColor + '55' }]}>
               <Text style={[styles.semesterText, { color: semesterColor }]}>סמסטר {course.semester}'</Text>
             </View>
+            <Text style={styles.name}>{course.name}</Text>
           </View>
         </TouchableOpacity>
       </View>
@@ -69,7 +69,7 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: Spacing.md,
-    flexDirection: 'row',
+    flexDirection: 'row-reverse',
     alignItems: 'center',
     gap: Spacing.sm,
   },
@@ -78,7 +78,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Heebo_600SemiBold',
     color: Colors.text,
     flex: 1,
-    textAlign: 'left',
+    textAlign: 'right',
   },
   semesterBadge: {
     borderRadius: Radius.full,

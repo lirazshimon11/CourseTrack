@@ -232,18 +232,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingBottom: Spacing.md,
     paddingTop: Spacing.sm,
+    alignItems: 'flex-start', // Use flex-start but in RTL this will be right
   },
   title: {
     fontSize: FontSize.xxxl,
     fontFamily: 'Heebo_700Bold',
     color: Colors.text,
-    textAlign: 'left',
+    textAlign: 'right',
   },
   subtitle: {
     fontSize: FontSize.sm,
     fontFamily: 'Heebo_400Regular',
     color: Colors.textMuted,
-    textAlign: 'left',
+    textAlign: 'right',
     marginTop: 2,
   },
   list: { paddingTop: Spacing.xs, paddingBottom: 100 },
@@ -264,7 +265,7 @@ const styles = StyleSheet.create({
   fab: {
     position: 'absolute',
     bottom: Spacing.xl,
-    left: Spacing.xl,
+    right: Spacing.xl,
     width: 60,
     height: 60,
     borderRadius: 30,
