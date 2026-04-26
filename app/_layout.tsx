@@ -84,9 +84,8 @@ const styles = StyleSheet.create({
         borderLeftWidth: 1,
         borderRightWidth: 1,
         borderColor: '#333333',
-        boxShadow: '0 0 100px rgba(0,0,0,0.8)',
-        marginVertical: 20,
-        borderRadius: 40,
+        marginVertical: 0,
+        borderRadius: 0,
         overflow: 'hidden',
       }
     })
