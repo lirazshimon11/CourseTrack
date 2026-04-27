@@ -11,14 +11,11 @@ interface SessionItemProps {
   session: Session;
   onPress: () => void;
   onStatusChange: (status: 'attended' | 'missed' | 'pending') => void;
-  themeColor?: string;
 }
 
-const SessionItemComponent = ({ session, onPress, onStatusChange, themeColor }: SessionItemProps) => {
+const SessionItemComponent = ({ session, onPress, onStatusChange }: SessionItemProps) => {
   const translateX = useRef(new Animated.Value(0)).current;
   const [swipeTriggered, setSwipeTriggered] = useState<'left' | 'right' | null>(null);
-
-  const hasNotes = session.notes && session.notes.trim().length > 0;
 
   const getStatusColor = () => {
     if (session.attendance === 'attended') return '#10B981';
@@ -98,11 +95,7 @@ const SessionItemComponent = ({ session, onPress, onStatusChange, themeColor }: 
       </Animated.View>
 
       <Animated.View
-        style={[
-          styles.container,
-          { transform: [{ translateX }], borderLeftColor: getStatusColor() },
-          hasNotes && [styles.noteGlow, { borderColor: themeColor || Colors.primaryLight, shadowColor: themeColor || Colors.primaryLight }]
-        ]}
+        style={[styles.container, { transform: [{ translateX }], borderRightColor: getStatusColor() }]}
         {...panResponder.panHandlers}
       >
         <Pressable onPress={onPress} style={styles.pressable}>
@@ -155,17 +148,11 @@ const styles = StyleSheet.create({
     borderRadius: Radius.md,
     flexDirection: 'row',
     alignItems: 'center',
-    borderLeftWidth: 4,
+    borderRightWidth: 4,
     elevation: 2,
     shadowColor: '#000',
     shadowOpacity: 0.1,
     shadowRadius: 4,
-  },
-  noteGlow: {
-    borderWidth: 1,
-    shadowOpacity: 0.5,
-    shadowRadius: 8,
-    elevation: 8,
   },
   pressable: {
     flex: 1,
@@ -182,16 +169,16 @@ const styles = StyleSheet.create({
     fontFamily: 'Heebo_700Bold',
     color: Colors.text,
     marginBottom: 2,
-    textAlign: 'right',
+    textAlign: 'left',
   },
   subtitleLine: {
     fontSize: FontSize.sm,
     fontFamily: 'Heebo_400Regular',
     color: Colors.textSecondary,
-    textAlign: 'right',
+    textAlign: 'left',
   },
   statusSection: {
-    paddingRight: Spacing.sm,
+    paddingLeft: Spacing.sm,
   },
   statusToggle: {
     fontSize: 20,
