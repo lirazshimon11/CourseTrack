@@ -61,10 +61,15 @@ const CourseScreen = () => {
   const grouped = useMemo(() => groupSessionsByWeek(sessions), [sessions]);
 
   const listRef = React.useRef<FlatList>(null);
+  const scrolledTabsRef = React.useRef<Record<string, boolean>>({});
 
   const initialIndex = useMemo(() => {
     if (grouped.length === 0) return 0;
-    const today = new Date().toISOString().split('T')[0];
+    
+    // Use local Date to avoid timezone shifts
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
     const index = grouped.findIndex(week =>
       week.sessions.some(s => s.date >= today)
     );
@@ -72,18 +77,21 @@ const CourseScreen = () => {
   }, [grouped]);
 
   React.useEffect(() => {
-    if (grouped.length > 0 && initialIndex > 0) {
-      // Small delay to ensure list is rendered
+    // Only scroll if there are items, and we HAVEN'T scrolled for this tab yet.
+    if (grouped.length > 0 && !scrolledTabsRef.current[activeTab]) {
       const timer = setTimeout(() => {
-        listRef.current?.scrollToIndex({
-          index: initialIndex,
-          animated: false,
-          viewPosition: 0,
-        });
-      }, 100);
+        if (listRef.current) {
+          scrolledTabsRef.current[activeTab] = true;
+          listRef.current.scrollToIndex({
+            index: initialIndex,
+            animated: false,
+            viewPosition: 0,
+          });
+        }
+      }, 150);
       return () => clearTimeout(timer);
     }
-  }, [grouped.length]);
+  }, [grouped.length, initialIndex, activeTab]);
 
   const allCount = sessions.length;
   const attendedCount = sessions.filter(s => s.attendance === 'attended').length;
@@ -206,6 +214,8 @@ const CourseScreen = () => {
           data={grouped}
           extraData={sessions}
           keyExtractor={item => String(item.weekNumber)}
+          initialNumToRender={50} // Guarantee items are rendered so scrollToIndex doesn't fail
+          maxToRenderPerBatch={50}
           onScrollToIndexFailed={info => {
             const wait = new Promise(resolve => setTimeout(resolve, 500));
             wait.then(() => {

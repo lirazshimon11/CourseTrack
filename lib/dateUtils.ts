@@ -57,7 +57,7 @@ export function groupSessionsByWeek(sessions: Session[]) {
     const weekY = sunday.getFullYear();
     const weekM = String(sunday.getMonth() + 1).padStart(2, '0');
     const weekD = String(sunday.getDate()).padStart(2, '0');
-    const weekKey = `${weekD}.${weekM}`;
+    const weekKey = `${weekD}.${weekM}.${weekY}`; // Fix uniqueness
 
     if (!groups[weekKey]) groups[weekKey] = [];
     groups[weekKey].push(session);

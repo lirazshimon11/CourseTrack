@@ -31,6 +31,7 @@ const RacingBorder = ({ color, cardW, cardH }: { color: string; cardW: number; c
         duration: LAP_DURATION,
         easing: Easing.linear,   // constant speed — no ease-in/out
         useNativeDriver: false,  // JS driver needed for color/position interpolations
+        isInteraction: false,    // CRITICAL: prevents blocking FlatList rendering
       })
     );
     loop.start();
