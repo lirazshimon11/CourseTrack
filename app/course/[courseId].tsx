@@ -58,7 +58,15 @@ const CourseScreen = () => {
     triggerRegen();
   }, [loadingSessions, sessions.length, courseId, hasAttemptedRegen]);
 
-  const grouped = useMemo(() => groupSessionsByWeek(sessions), [sessions]);
+  const grouped = useMemo(() => {
+    let filteredSessions = sessions;
+    if (activeFilter === 'attended') {
+      filteredSessions = sessions.filter(s => s.attendance === 'attended');
+    } else if (activeFilter === 'missed') {
+      filteredSessions = sessions.filter(s => s.attendance === 'missed');
+    }
+    return groupSessionsByWeek(filteredSessions);
+  }, [sessions, activeFilter]);
 
   const listRef = React.useRef<FlatList>(null);
   const scrolledTabsRef = React.useRef<Record<string, boolean>>({});
