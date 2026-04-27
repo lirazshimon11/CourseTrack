@@ -71,6 +71,7 @@ export default function RootLayout() {
           <Stack
             screenOptions={{
               headerShown: false,
+              headerShadowVisible: false,
               contentStyle: { backgroundColor: Colors.background },
               animation: Platform.OS === 'web' ? 'fade' : 'slide_from_right',
             }}
@@ -93,12 +94,11 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: Platform.OS === 'web' ? 480 : undefined,
     backgroundColor: Colors.background,
-    paddingTop: 22, // Move everything down as requested
     ...Platform.select({
       web: {
         marginVertical: 0,
         borderRadius: 0,
-        overflow: 'hidden',
+        overflow: 'visible',
       }
     })
   }

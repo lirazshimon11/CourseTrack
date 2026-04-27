@@ -30,9 +30,11 @@ export const SessionDetailSheet = ({ session, onClose, onNotesChange, onStatusCh
   const [showSuccess, setShowSuccess] = useState(false);
   const toastOpacity = React.useRef(new Animated.Value(0)).current;
   const translateY = React.useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+  const [internalVisible, setInternalVisible] = useState(false);
 
   useEffect(() => {
     if (session) {
+      setInternalVisible(true);
       setNotes(session.notes || '');
       setLocalAttendance(session.attendance ?? null);
       Animated.spring(translateY, {
@@ -40,25 +42,32 @@ export const SessionDetailSheet = ({ session, onClose, onNotesChange, onStatusCh
         useNativeDriver: true,
         bounciness: 0,
       }).start();
-    } else {
-      Animated.timing(translateY, {
-        toValue: SCREEN_HEIGHT,
-        duration: 250,
-        useNativeDriver: true,
-      }).start();
+    } else if (internalVisible) {
+      handleDismiss();
     }
   }, [session]);
 
+  const handleDismiss = () => {
+    Animated.timing(translateY, {
+      toValue: SCREEN_HEIGHT,
+      duration: 250,
+      useNativeDriver: true,
+    }).start(() => {
+      setInternalVisible(false);
+      onClose();
+    });
+  };
+
   const panResponder = React.useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, gestureState) => gestureState.dy > 10,
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, gestureState) => Math.abs(gestureState.dy) > 5,
       onPanResponderMove: (_, gestureState) => {
         if (gestureState.dy > 0) translateY.setValue(gestureState.dy);
       },
       onPanResponderRelease: (_, gestureState) => {
         if (gestureState.dy > 120 || gestureState.vy > 0.5) {
-          onClose();
+          handleDismiss();
         } else {
           Animated.spring(translateY, { toValue: 0, useNativeDriver: true }).start();
         }
@@ -108,9 +117,9 @@ export const SessionDetailSheet = ({ session, onClose, onNotesChange, onStatusCh
   const hasChanges = notes !== (session.notes || '');
 
   return (
-    <Modal visible={!!session} transparent animationType="none" statusBarTranslucent>
-      <View style={styles.overlay}>
-        <Pressable style={styles.backdrop} onPress={onClose} />
+    <Modal visible={internalVisible} transparent animationType="none" statusBarTranslucent onRequestClose={handleDismiss}>
+      <View style={styles.overlay} {...panResponder.panHandlers}>
+        <Pressable style={styles.backdrop} onPress={handleDismiss} />
         <Animated.View
           style={[styles.sheet, { transform: [{ translateY }] }]}
         >
@@ -120,8 +129,8 @@ export const SessionDetailSheet = ({ session, onClose, onNotesChange, onStatusCh
             </Animated.View>
           )}
 
-          {/* Gesture Drag Zone */}
-          <View {...panResponder.panHandlers} style={styles.dragZone}>
+          {/* Gesture indicator */}
+          <View style={styles.dragZone}>
             <View style={styles.handleBar} />
 
             <Pressable onPress={Keyboard.dismiss} accessible={false}>
