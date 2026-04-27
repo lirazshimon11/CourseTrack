@@ -33,6 +33,21 @@ if (Platform.OS === 'web') {
       }
     `;
     document.head.appendChild(style);
+
+    // Inject PWA Manifest Links
+    if (!document.querySelector('link[rel="manifest"]')) {
+      const manifestLink = document.createElement('link');
+      manifestLink.rel = 'manifest';
+      manifestLink.href = '/manifest.json';
+      document.head.appendChild(manifestLink);
+    }
+    
+    if (!document.querySelector('link[rel="apple-touch-icon"]')) {
+      const appleTouchIcon = document.createElement('link');
+      appleTouchIcon.rel = 'apple-touch-icon';
+      appleTouchIcon.href = '/apple-touch-icon.png';
+      document.head.appendChild(appleTouchIcon);
+    }
   }
 }
 
