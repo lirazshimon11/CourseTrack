@@ -1,10 +1,10 @@
 # CourseTracker 🎓
 
-**CourseTracker** is a lightweight, efficient academic schedule management application tailored for university students (designed with the HIT - Holon Institute of Technology academic structure in mind). 
+**CourseTracker** is an independent, personal academic schedule management application built from scratch to solve my own daily scheduling needs as a student at HIT (Holon Institute of Technology). 
 
 It solves the problem of keeping track of specific lectures, tutorials, and viewing statuses within a busy semester by automating schedule generation based on the semester's timeframe. 
 
-> **Note:** The current iteration is built as a single-user MVP (Personal Utility App) focused entirely on core scheduling logic, intentionally bypassing user authentication for rapid deployment and immediate personal use.
+> **Note:** This project was developed entirely independently as a single-user MVP (Personal Utility App) to manage my own courses. It focuses entirely on core scheduling logic, intentionally bypassing user authentication for rapid deployment and immediate personal use.
 
 ## ✨ Features
 
@@ -32,4 +32,4 @@ It solves the problem of keeping track of specific lectures, tutorials, and view
 As a personal MVP, the core functionality is fully operational. However, there are planned architectural improvements for scaling:
 
 * **Holiday Integration:** Currently, the automated generation logic plots dates continuously based on a 7-day interval throughout the semester timeframe. A planned enhancement is integrating an external API (such as a Jewish Holidays API or institutional calendar API) to automatically identify and skip non-study dates.
-* **User Authentication & Multi-tenant Support:** Implement Supabase Auth to transition the app from a personal utility utility to a secure platform available for all students, with isolated databases for each user.
+* **User Authentication & Multi-tenant Support:** Implement Supabase Auth to transition the app from a personal utility to a secure platform available for all students, with isolated databases for each user.
