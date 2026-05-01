@@ -4,21 +4,27 @@
 
 It solves the problem of keeping track of specific lectures, tutorials, and viewing statuses within a busy semester by automating schedule generation based on the semester's timeframe. 
 
-> **Note:** This project was developed entirely independently as a single-user MVP (Personal Utility App) to manage my own courses. It focuses entirely on core scheduling logic, intentionally bypassing user authentication for rapid deployment and immediate personal use.
+> **Note:** This project was developed entirely independently as a single-user MVP. It focuses strictly on core scheduling logic and cross-platform accessibility, intentionally bypassing user authentication for rapid deployment and immediate personal use.
 
 ## ✨ Features
 
+* **Cross-Platform Delivery:** Built with React Native and Expo Router, allowing the app to compile seamlessly for both Mobile (iOS/Android) and Web environments.
 * **Course Management:** Easily create, edit, and manage multiple courses (e.g., "Infi 3", "Physics").
-* **Semester Boundaries Setup:** Define the global start and end dates of the academic semester.
-* **Automated Schedule Generation:** Input the recurring weekly schedule for a course (e.g., Sundays, 15:00-19:00), and the system automatically generates a chronological list of all lecture and tutorial dates for the entire semester.
-* **Interactive Lesson Tracking:** Every generated class instance serves as an interactive element. Clicking it triggers a pop-up modal allowing the user to:
+* **Automated Schedule Generation:** Input the recurring weekly schedule, and the system automatically generates a chronological list of all lecture dates for the entire semester. 
+* **Smart Date Handling:** Utilizes `date-fns` for precise and localized date/time manipulation across the semester timeline.
+* **Interactive Lesson Tracking:** Every generated class instance is an interactive element. Clicking it triggers a pop-up modal to:
   * Toggle attendance or viewing status (e.g., "Watched" / "Not Watched").
   * Add specific text notes, remarks, or summaries for that exact lesson.
+* **Hebrew UI Optimization:** Integrated with Google's `Heebo` font for optimal typography and readability in RTL interfaces.
 
-## 🛠️ Tech Stack
+## 🛠️ Tech Stack & Architecture
 
-* **Frontend:** [Insert your frontend tech here, e.g., Next.js / React Native]
-* **Backend & Database:** Supabase (Handles all data storage for courses, generated dates, and user notes).
+* **Framework:** React Native / Expo (SDK 54)
+* **Language:** TypeScript (Ensuring robust, type-safe code)
+* **Routing:** Expo Router (Modern file-based routing)
+* **Backend & Database:** Supabase (Handles all relational data storage for courses and notes)
+* **Local Storage:** AsyncStorage (For local state persistence and caching)
+* **Utilities:** `date-fns` (Date calculations)
 
 ## ⚙️ How It Works
 
@@ -29,7 +35,7 @@ It solves the problem of keeping track of specific lectures, tutorials, and view
 
 ## 🚀 Roadmap & Future Enhancements
 
-As a personal MVP, the core functionality is fully operational. However, there are planned architectural improvements for scaling:
+As a personal MVP, the core functionality is fully operational. Planned architectural improvements include:
 
-* **Holiday Integration:** Currently, the automated generation logic plots dates continuously based on a 7-day interval throughout the semester timeframe. A planned enhancement is integrating an external API (such as a Jewish Holidays API or institutional calendar API) to automatically identify and skip non-study dates.
+* **Holiday Integration:** The current generation logic plots dates continuously. A planned enhancement is integrating an external API (such as a Jewish Holidays API or institutional calendar API) to automatically identify and skip non-study dates.
 * **User Authentication & Multi-tenant Support:** Implement Supabase Auth to transition the app from a personal utility to a secure platform available for all students, with isolated databases for each user.
