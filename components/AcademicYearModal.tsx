@@ -7,6 +7,8 @@ import { Colors, Spacing, Radius, FontSize } from '../constants/theme';
 import { AcademicYear } from '../types';
 
 interface AcademicYearModalProps {
+  title?: string;
+  initialLabel?: string;
   visible: boolean;
   current: AcademicYear | null;
   onClose: () => void;
@@ -26,6 +28,8 @@ function parseDDMMYYYY(str: string): string | null {
   const match = str.trim().match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
   if (!match) return null;
   const [, d, m, y] = match;
+  const date = new Date(Number(y), Number(m) - 1, Number(d));
+  if (date.getFullYear() !== Number(y) || date.getMonth() !== Number(m) - 1 || date.getDate() !== Number(d)) return null;
   return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
 }
 
@@ -36,8 +40,14 @@ function formatToDisplay(iso: string | null | undefined): string {
   return `${match[3]}.${match[2]}.${match[1]}`;
 }
 
-export function AcademicYearModal({ visible, current, onClose, onSave }: AcademicYearModalProps) {
-  const [label, setLabel] = useState(current?.label ?? '2025-2026');
+function defaultYearLabel() {
+  const now = new Date();
+  const start = now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear() - 1;
+  return `${start}-${start + 1}`;
+}
+
+export function AcademicYearModal({ visible, current, onClose, onSave, title = 'הגדרות שנה אקדמית', initialLabel }: AcademicYearModalProps) {
+  const [label, setLabel] = useState(current?.label ?? defaultYearLabel());
   const [fields, setFields] = useState({
     semester_a_start: formatToDisplay(current?.semester_a_start),
     semester_a_end:   formatToDisplay(current?.semester_a_end),
@@ -47,11 +57,17 @@ export function AcademicYearModal({ visible, current, onClose, onSave }: Academi
     semester_c_end:   formatToDisplay(current?.semester_c_end),
   });
   const [saving, setSaving] = useState(false);
+  const [errorText, setErrorText] = useState('');
+  const [expanded, setExpanded] = useState(false);
+  const [excluded, setExcluded] = useState('');
 
   // Sync when modal opens with existing data
   React.useEffect(() => {
     if (visible) {
-      setLabel(current?.label ?? '2025-2026');
+      setErrorText('');
+      setExcluded((current?.excluded_dates ?? []).map(formatToDisplay).join('\n'));
+      setExpanded(Boolean(current?.semester_b_start || current?.semester_c_start));
+      setLabel(current?.label ?? initialLabel ?? defaultYearLabel());
       setFields({
         semester_a_start: formatToDisplay(current?.semester_a_start),
         semester_a_end:   formatToDisplay(current?.semester_a_end),
@@ -61,17 +77,25 @@ export function AcademicYearModal({ visible, current, onClose, onSave }: Academi
         semester_c_end:   formatToDisplay(current?.semester_c_end),
       });
     }
-  }, [visible, current]);
+  }, [visible, current, initialLabel]);
 
   const handleSave = async () => {
+    setErrorText('');
+    if (!label.trim()) { setErrorText('צריך לתת שם לשנת הלימודים.'); return; }
     setSaving(true);
-    const parsed: any = { label };
+    const parsed: any = { label: label.trim(), excluded_dates: [] };
+    for (const item of excluded.split(/[\n,]/).map(v => v.trim()).filter(Boolean)) {
+      const date = parseDDMMYYYY(item);
+      if (!date) { setErrorText('תאריך יום ללא לימודים אינו תקין. השתמשו ב־DD.MM.YYYY'); setSaving(false); return; }
+      parsed.excluded_dates.push(date);
+    }
+    parsed.excluded_dates = [...new Set(parsed.excluded_dates)].sort();
     for (const f of FIELDS) {
       const val = fields[f.key];
       if (val) {
         const iso = parseDDMMYYYY(val);
         if (!iso) {
-          Alert.alert('שגיאה', `הפורמט של "${f.label}" שגוי. השתמש ב-DD.MM.YYYY`);
+          setErrorText(`התאריך של "${f.label}" אינו תקין. השתמשו ב-DD.MM.YYYY`);
           setSaving(false);
           return;
         }
@@ -80,10 +104,22 @@ export function AcademicYearModal({ visible, current, onClose, onSave }: Academi
         parsed[f.key] = null;
       }
     }
-    const { error } = await onSave(parsed);
-    setSaving(false);
-    if (error) Alert.alert('שגיאה', `שמירה נכשלה: ${error.message || 'שגיאה לא ידועה'}`);
-    else onClose();
+    for (const semester of ['a', 'b', 'c']) {
+      const start = parsed[`semester_${semester}_start`];
+      const end = parsed[`semester_${semester}_end`];
+      if ((start && !end) || (!start && end) || (start && end && start > end)) {
+        setErrorText('לכל סמסטר צריך תאריך התחלה ותאריך סיום מאוחר ממנו.'); setSaving(false); return;
+      }
+    }
+    if (!parsed.semester_a_start && !parsed.semester_b_start && !parsed.semester_c_start) {
+      setErrorText('מגדירים לפחות סמסטר אחד כדי להתחיל.'); setSaving(false); return;
+    }
+    try {
+      const { error } = await onSave(parsed);
+      if (error) setErrorText('השמירה נכשלה. נסו שוב בעוד רגע.');
+      else onClose();
+    } catch { setErrorText('לא ניתן לשמור כרגע. בדקו את חיבור האינטרנט.'); }
+    finally { setSaving(false); }
   };
 
   return (
@@ -95,7 +131,7 @@ export function AcademicYearModal({ visible, current, onClose, onSave }: Academi
           <TouchableOpacity onPress={onClose} hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}>
             <Text style={styles.cancel}>ביטול</Text>
           </TouchableOpacity>
-          <Text style={styles.title}>הגדרות שנה אקדמית</Text>
+          <Text style={styles.title}>{title}</Text>
           <TouchableOpacity onPress={handleSave} disabled={saving} hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}>
             {saving ? <ActivityIndicator color={Colors.primary} /> : <Text style={styles.save}>שמור</Text>}
           </TouchableOpacity>
@@ -112,7 +148,8 @@ export function AcademicYearModal({ visible, current, onClose, onSave }: Academi
             textAlign="right"
           />
 
-          {FIELDS.map(f => (
+          <Text style={styles.hintText}>אפשר להתחיל מסמסטר אחד בלבד ולהוסיף את היתר בהמשך.</Text>
+          {FIELDS.filter((_, index) => expanded || index < 2).map(f => (
             <View key={f.key}>
               <Text style={styles.sectionLabel}>{f.label}</Text>
               <TextInput
@@ -127,6 +164,11 @@ export function AcademicYearModal({ visible, current, onClose, onSave }: Academi
             </View>
           ))}
 
+          <TouchableOpacity onPress={() => setExpanded(!expanded)}><Text style={[styles.save, { textAlign: 'right', marginTop: 16 }]}>{expanded ? 'הסתרת סמסטרים נוספים' : '+ הוספת סמסטר ב׳ / קיץ'}</Text></TouchableOpacity>
+          {!!errorText && <Text accessibilityRole="alert" style={[styles.hintText, { color: Colors.danger, marginTop: 12 }]}>{errorText}</Text>}
+          <Text style={styles.sectionLabel}>ימים ללא לימודים (לא חובה)</Text>
+          <TextInput accessibilityLabel="ימים ללא לימודים" multiline style={[styles.input, { minHeight: 90 }]} value={excluded} onChangeText={setExcluded} placeholder="תאריך בכל שורה, למשל 01.01.2027" placeholderTextColor={Colors.textMuted} textAlign="right" />
+          <Text style={styles.hintText}>יחול על יצירת מפגשים חדשים בלבד. מפגשים קיימים לא משתנים.</Text>
           <View style={styles.hint}>
             <Text style={styles.hintText}>
               פורמט התאריכים: DD.MM.YYYY{'\n'}

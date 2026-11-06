@@ -53,9 +53,11 @@ export const CreateCourseModal = ({ visible, academicYear, courseToEdit, readOnl
   const [lectureSlots, setLectureSlots] = useState<SlotWithoutMeta[]>([]);
   const [exerciseSlots, setExerciseSlots] = useState<SlotWithoutMeta[]>([]);
   const [loading, setLoading] = useState(false);
+  const [errorText, setErrorText] = useState('');
 
   useEffect(() => {
     if (visible) {
+      setErrorText('');
       if (courseToEdit) {
         setName(courseToEdit.name);
         setSemester(courseToEdit.semester);
@@ -82,7 +84,7 @@ export const CreateCourseModal = ({ visible, academicYear, courseToEdit, readOnl
         }
       } else {
         setName('');
-        setSemester('א');
+        setSemester(academicYear?.semester_a_start ? 'א' : academicYear?.semester_b_start ? 'ב' : 'קיץ');
         setColor(COURSE_COLORS[0]);
         setLectureSlots([{ day_of_week: 0, start_time: '08:00', end_time: '10:00', type: 'lecture' }]);
         setExerciseSlots([]);
@@ -91,15 +93,20 @@ export const CreateCourseModal = ({ visible, academicYear, courseToEdit, readOnl
   }, [visible, courseToEdit]);
 
   const handleSave = async () => {
-    if (!name.trim()) return Alert.alert('שגיאה', 'יש להזין שם לקורס');
+    setErrorText('');
+    if (!name.trim()) { setErrorText('יש להזין שם לקורס'); return; }
+    const dates = semester === 'א' ? [academicYear?.semester_a_start, academicYear?.semester_a_end] : semester === 'ב' ? [academicYear?.semester_b_start, academicYear?.semester_b_end] : [academicYear?.semester_c_start, academicYear?.semester_c_end];
+    if (!courseToEdit && dates.some(d => !d)) { setErrorText('לפני יצירת הקורס, צריך להגדיר את תאריכי הסמסטר שנבחר דרך מסך הבית.'); return; }
+    const slots = [...lectureSlots, ...exerciseSlots];
+    if (!slots.length) { setErrorText('הוסיפו לפחות הרצאה או תרגול אחד.'); return; }
+    if (slots.some(s => !/^([01]\d|2[0-3]):[0-5]\d$/.test(s.start_time) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(s.end_time) || s.start_time >= s.end_time)) { setErrorText('בדקו שהשעות תקינות ושעת הסיום מאוחרת משעת ההתחלה.'); return; }
     setLoading(true);
-    const { error } = await onSave(name, semester, color, lectureSlots, exerciseSlots);
-    setLoading(false);
-    if (error) {
-      Alert.alert('שגיאה', 'שמירה נכשלה');
-    } else {
-      onClose();
-    }
+    try {
+      const { error } = await onSave(name.trim(), semester, color, lectureSlots, exerciseSlots);
+      if (error) setErrorText('השמירה נכשלה. בדקו את החיבור ונסו שוב.');
+      else onClose();
+    } catch { setErrorText('לא ניתן לשמור כרגע. נסו שוב.'); }
+    finally { setLoading(false); }
   };
 
   return (
@@ -196,6 +203,7 @@ export const CreateCourseModal = ({ visible, academicYear, courseToEdit, readOnl
           </ScrollView>
           {!readOnly && (
             <View style={styles.footer}>
+              {!!errorText && <Text accessibilityRole="alert" style={{ color: Colors.danger, textAlign: 'right', marginBottom: 10 }}>{errorText}</Text>}
               <TouchableOpacity style={[styles.saveBtn, loading && { opacity: 0.7 }]} onPress={handleSave} disabled={loading}>
                 <Text style={styles.saveBtnText}>{loading ? 'שומר...' : (courseToEdit ? 'שמור שינויים' : 'צור קורס')}</Text>
               </TouchableOpacity>

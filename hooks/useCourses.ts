@@ -9,10 +9,9 @@ export function useCourses(academicYearId?: string | null) {
 
   const fetchCourses = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('courses')
-      .select('*')
-      .order('order_index', { ascending: true });
+    let query = supabase.from('courses').select('*').order('order_index', { ascending: true });
+    if (academicYearId) query = query.eq('academic_year_id', academicYearId);
+    const { data, error } = await query;
 
     if (error) {
       console.error('Error fetching courses:', error);
@@ -54,9 +53,14 @@ export function useCourses(academicYearId?: string | null) {
 
     if (academicYear) {
       const sessionObjects = generateSessions(course.id, slots_data, academicYear, semester);
+      if (sessionObjects.length === 0) {
+        await supabase.from('courses').delete().eq('id', course.id);
+        return { error: new Error('לא נמצאו מפגשים בטווח התאריכים שנבחר') };
+      }
       const { error: sessErr } = await supabase.from('sessions').insert(sessionObjects);
       if (sessErr) {
-        console.error('Session generation error:', sessErr);
+        await supabase.from('courses').delete().eq('id', course.id);
+        return { error: sessErr };
       }
     }
 
@@ -157,7 +161,10 @@ export function useCourses(academicYearId?: string | null) {
   };
 
   const deleteAllData = async () => {
-    await supabase.from('courses').delete().neq('id', '0');
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('נדרשת כניסה מחדש');
+    const { error } = await supabase.from('courses').delete().eq('user_id', user.id);
+    if (error) throw error;
     setCourses([]);
   };
 

@@ -1,35 +1,47 @@
-# CourseTracker 🎓
+# CourseTrack
 
-**CourseTracker** is a lightweight, efficient academic schedule management application tailored for university students (designed with the HIT - Holon Institute of Technology academic structure in mind). 
+Institution calendars and administrator setup: [מדריך הפעלה ובדיקה בעברית](docs/calendar-setup.he.md).
 
-It solves the problem of keeping track of specific lectures, tutorials, and viewing statuses within a busy semester by automating schedule generation based on the semester's timeframe. 
+Hebrew RTL course and lesson tracker built with Expo Router, React Native Web and Supabase.
 
-> **Note:** The current iteration is built as a single-user MVP (Personal Utility App) focused entirely on core scheduling logic, intentionally bypassing user authentication for rapid deployment and immediate personal use.
+## Local development
 
-## ✨ Features
+- `npm ci`
+- `npm run web -- --port 8081`
+- `npx tsc --noEmit`
+- `npm run build`
 
-* **Course Management:** Easily create, edit, and manage multiple courses (e.g., "Infi 3", "Physics").
-* **Semester Boundaries Setup:** Define the global start and end dates of the academic semester.
-* **Automated Schedule Generation:** Input the recurring weekly schedule for a course (e.g., Sundays, 15:00-19:00), and the system automatically generates a chronological list of all lecture and tutorial dates for the entire semester.
-* **Interactive Lesson Tracking:** Every generated class instance serves as an interactive element. Clicking it triggers a pop-up modal allowing the user to:
-  * Toggle attendance or viewing status (e.g., "Watched" / "Not Watched").
-  * Add specific text notes, remarks, or summaries for that exact lesson.
+## Enable separate accounts (required before real use)
 
-## 🛠️ Tech Stack
+The client now supports email/password registration, email confirmation, persistent sign-in and sign-out. All routes are gated. Authenticated data screens stay closed until the database migration is installed. The public Supabase key in `lib/supabase.ts` is a client key, not an admin credential.
 
-* **Frontend:** [Insert your frontend tech here, e.g., Next.js / React Native]
-* **Backend & Database:** Supabase (Handles all data storage for courses, generated dates, and user notes).
+1. Back up the existing database. Run `supabase/migrations/202611050001_accounts.sql` in the existing project's Supabase SQL Editor as an administrator. It requires the existing `academic_years`, `courses`, and `sessions` tables. It replaces the old MVP policies, enables RLS, removes anonymous table access and sets new rows' owner to `auth.uid()`. Session ownership is inherited from the parent course. Course/year foreign keys should use ON DELETE CASCADE for course removal to remove related sessions.
+2. In Supabase Auth, enable email/password sign-in and configure the Site URL and allowed confirmation redirect URLs for the local and deployed app. Keep email confirmation enabled for real users and configure production SMTP before inviting users.
+3. Register the original owner's account and confirm the email. Verify its UUID in Auth > Users. Existing records intentionally retain a NULL owner; they are not given to the first person who registers.
+4. To preserve the original personal data, replace the UUID below with the **verified original owner's UUID**, review the affected rows, then run as administrator. Do not assign the original data to a sibling or arbitrary first account:
 
-## ⚙️ How It Works
+```sql
+begin;
+update public.academic_years set user_id = 'VERIFIED_OWNER_UUID'::uuid where user_id is null;
+update public.courses set user_id = 'VERIFIED_OWNER_UUID'::uuid where user_id is null;
+commit;
+```
 
-1. **Initialize:** The user sets the overarching dates for the current academic semester.
-2. **Add Courses:** The user adds a course and inputs its regular weekly hours.
-3. **Generate:** The app's core logic takes the weekly parameters and plots them against the semester timeline, generating a complete list of upcoming classes.
-4. **Track:** As the semester progresses, the user clicks into individual classes to mark progress and save study notes.
+5. Register the second account separately. It starts with no academic year or courses. Each account sets its own dates and courses.
 
-## 🚀 Roadmap & Future Enhancements
+Security model follows [Supabase RLS documentation](https://supabase.com/docs/guides/database/postgres/row-level-security).
 
-As a personal MVP, the core functionality is fully operational. However, there are planned architectural improvements for scaling:
+## Acceptance checks after database setup
 
-* **Holiday Integration:** Currently, the automated generation logic plots dates continuously based on a 7-day interval throughout the semester timeframe. A planned enhancement is integrating an external API (such as a Jewish Holidays API or institutional calendar API) to automatically identify and skip non-study dates.
-* **User Authentication & Multi-tenant Support:** Implement Supabase Auth to transition the app from a personal utility utility to a secure platform available for all students, with isolated databases for each user.
+Use two separate browser profiles and two confirmed accounts (A and B):
+
+- A creates an academic year, course and lesson note. Refresh preserves sign-in and data.
+- B sees none of A's data, even when opening A's course URL directly.
+- Using B's authenticated API client, reads/updates/deletes of A's IDs return no accessible rows; attempts to insert with A's user ID or A's year/course ID are denied by RLS.
+- Anonymous API requests cannot read or mutate any of the three tables.
+- B can create and edit its own year, course, attendance and notes.
+- Sign out and switch accounts in the same browser: no previous account data remains visible.
+- The delete-all control only removes the current user's courses and their sessions; the other account and academic year remain intact.
+- Invalid calendar dates, reversed dates, missing semester dates and invalid lesson times display inline errors.
+
+The database migration and live two-account checks require administrative access and were not executed by the local implementation. No production data was changed.

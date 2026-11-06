@@ -1,282 +1,56 @@
-import React, { useState } from 'react';
-import {
-  View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import React, { useEffect, useState } from 'react';
+import { ScrollView, Text, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, Radius, FontSize } from '../constants/theme';
-import { useCourses } from '../hooks/useCourses';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Colors } from '../constants/theme';
 import { supabase } from '../lib/supabase';
+import { useAcademicYear } from '../hooks/useAcademicYear';
+import { useCourses } from '../hooks/useCourses';
+import { AcademicYearModal } from '../components/AcademicYearModal';
+import { ConfirmModal } from '../components/ConfirmModal';
 
-const SettingsScreen = () => {
+export default function SettingsScreen() {
   const router = useRouter();
-  const { courses, deleteAllData, recreateSessions, refetch } = useCourses();
-  const [deleting, setDeleting] = useState(false);
-  const [fixing, setFixing] = useState(false);
-  const handleDeepClean = async () => {
-    Alert.alert(
-      'ניקיון עמוק וסנכרון תאריכים',
-      'פעולה זו תמחק את כל המפגשים ותייצר אותם מחדש בצורה נקייה ומדויקת לפי ההגדרות העדכניות בבסיס הנתונים.\nהנוכחות וההערות שלך יישמרו.',
-      [
-        { text: 'ביטול', style: 'cancel' },
-        { 
-          text: 'נקה וסנכרן עכשיו', 
-          onPress: async () => {
-            setFixing(true);
-            try {
-              // Refresh courses first to make sure we have the latest slots_data
-              await refetch();
-              
-              for (const course of courses) {
-                const res = await recreateSessions(course.id);
-                if (res.error) {
-                  console.error(`Error with ${course.name}:`, res.error);
-                  // Continue to next course even if one fails
-                }
-              }
-              Alert.alert('הצלחה', 'הניקיון והסנכרון הושלמו בהצלחה! כל הרשימות עודכנו.');
-            } catch (err: any) {
-              Alert.alert('שגיאה', 'הפעולה נכשלה: ' + (err.message || 'שגיאה לא ידועה'));
-            } finally {
-              setFixing(false);
-            }
-          }
-        }
-      ]
-    );
+  const { academicYear, saveYear } = useAcademicYear();
+  const { deleteAllData } = useCourses();
+  const [email, setEmail] = useState('');
+  const [showYear, setShowYear] = useState(false);
+  const [confirm, setConfirm] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+  useEffect(() => { supabase.auth.getUser().then(({ data }) => setEmail(data.user?.email ?? '')); }, []);
+  const signOut = async () => {
+    setBusy(true); setMessage('');
+    const { error } = await supabase.auth.signOut();
+    if (error) { setMessage('ההתנתקות נכשלה. נסו שוב.'); setBusy(false); }
   };
-
-  const handleDeleteAll = () => {
-    Alert.alert(
-      'מחיקת כל הנתונים',
-      'פעולה זו תמחוק את כל הקורסים, המפגשים וההערות שלך לצמיתות.\nאין דרך חזרה.',
-      [
-        { text: 'ביטול', style: 'cancel' },
-        {
-          text: 'מחק הכל',
-          style: 'destructive',
-          onPress: async () => {
-            setDeleting(true);
-            try {
-              await deleteAllData();
-              Alert.alert('בוצע', 'כל הנתונים נמחקו בהצלחה');
-              router.back();
-            } catch {
-              Alert.alert('שגיאה', 'מחיקה נכשלה. נסה שוב.');
-            } finally {
-              setDeleting(false);
-            }
-          },
-        },
-      ]
-    );
+  const remove = async () => {
+    setConfirm(false); setBusy(true); setMessage('');
+    try { await deleteAllData(); setMessage('הקורסים והמפגשים שלך נמחקו. הגדרות השנה נשמרו.'); }
+    catch { setMessage('המחיקה נכשלה. נסו שוב.'); }
+    finally { setBusy(false); }
   };
-
-  const handleDeleteYearData = () => {
-    Alert.alert(
-      'מחיקת נתוני שנה אקדמית',
-      'האם למחוק את הגדרות תאריכי השנה האקדמית?',
-      [
-        { text: 'ביטול', style: 'cancel' },
-        {
-          text: 'מחק',
-          style: 'destructive',
-          onPress: async () => {
-            await supabase.from('academic_years').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-            Alert.alert('בוצע', 'נתוני השנה האקדמית נמחקו');
-          },
-        },
-      ]
-    );
-  };
-
-  return (
-    <SafeAreaView style={styles.root} edges={['top']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity 
-          onPress={() => router.canGoBack() ? router.back() : router.replace('/')} 
-          style={styles.backBtn} 
-          hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-        >
-          <Ionicons name="arrow-forward" size={28} color={Colors.primaryLight} />
-        </TouchableOpacity>
-        <Text style={styles.title}>הגדרות</Text>
-        <View style={{ width: 40 }} />
-      </View>
-
-      <View style={styles.body}>
-        {/* App info */}
-        <View style={styles.card}>
-          <Text style={styles.cardIcon}>🎓</Text>
-          <Text style={styles.cardTitle}>CourseTrack</Text>
-          <Text style={styles.cardSub}>מעקב קורסים אקדמיים</Text>
-          <Text style={styles.version}>גרסה 1.0.0</Text>
-        </View>
-
-        {/* Tools Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>כלים ותחזוקה</Text>
-          <TouchableOpacity 
-            style={[styles.toolBtn, { backgroundColor: '#1a2b33', borderColor: Colors.primary }]} 
-            onPress={handleDeepClean}
-            disabled={fixing}
-          >
-            {fixing 
-              ? <ActivityIndicator color={Colors.primaryLight} />
-              : <Text style={styles.toolBtnText}>🌀  סנכרון ויצירת רשימות מחדש</Text>
-            }
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={[styles.toolBtn, { backgroundColor: '#331a1a', borderColor: '#4a1d1d', marginTop: Spacing.md }]} 
-            onPress={handleDeleteAll}
-            disabled={deleting}
-          >
-            {deleting 
-              ? <ActivityIndicator color="#EF4444" />
-              : <Text style={[styles.toolBtnText, { color: '#EF4444' }]}>⚠️  מחיקת כל הנתונים לצמיתות</Text>
-            }
-          </TouchableOpacity>
-        </View>
-
-        {/* Danger zone */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>אזור מסוכן</Text>
-
-          <TouchableOpacity style={styles.dangerBtn} onPress={handleDeleteYearData}>
-            <Text style={styles.dangerBtnText}>🗑️  מחק נתוני שנה אקדמית</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.dangerBtn, styles.dangerBtnStrong]}
-            onPress={handleDeleteAll}
-            disabled={deleting}
-          >
-            {deleting
-              ? <ActivityIndicator color={Colors.danger} />
-              : <Text style={[styles.dangerBtnText, styles.dangerBtnTextStrong]}>
-                  ⚠️  מחק את כל הנתונים
-                </Text>
-            }
-          </TouchableOpacity>
-          <Text style={styles.dangerHint}>פעולה זו אינה הפיכה. כל הקורסים, המפגשים וההערות יימחקו.</Text>
-        </View>
-      </View>
-    </SafeAreaView>
-  );
+  return <SafeAreaView style={s.root}>
+    <View style={s.header}><TouchableOpacity onPress={() => router.replace('/')}><Text style={s.link}>→ לקורסים שלי</Text></TouchableOpacity><Text style={s.title}>הגדרות</Text></View>
+    <ScrollView contentContainerStyle={s.body}>
+      <View style={s.card}><Text style={s.title}>המוסד והלוח האקדמי שלי</Text><Text style={s.hint}>בחירת מוסד ושנה, שימוש בלוח משותף או הגדרת תאריכים אישיים. למנהלים מוצגים גם כלי ניהול וסנכרון.</Text><TouchableOpacity style={s.button} onPress={() => router.push('/calendars')}><Text style={s.link}>מוסדות, לוחות ופרופיל לימודים</Text></TouchableOpacity></View>
+      <View style={s.card}><Text style={s.title}>החשבון שלי</Text><Text style={s.text}>{email}</Text><Text style={s.hint}>הקורסים וההתקדמות נשמרים בחשבון הזה.</Text><TouchableOpacity disabled={busy} style={s.button} onPress={signOut}><Text style={s.link}>התנתקות מהחשבון</Text></TouchableOpacity></View>
+      <View style={s.card}><Text style={s.title}>שנת הלימודים</Text><Text style={s.text}>{academicYear?.label ?? 'עדיין לא הוגדרה'}</Text><Text style={s.hint}>תאריכי הסמסטר משמשים ליצירת השיעורים בקורסים חדשים. שינוי התאריכים לא משנה שיעורים קיימים.</Text><TouchableOpacity style={s.button} onPress={() => setShowYear(true)}><Text style={s.link}>עריכת תאריכי הסמסטרים</Text></TouchableOpacity></View>
+      {!!message && <Text accessibilityRole="alert" style={s.text}>{message}</Text>}
+      <View style={s.card}><Text style={s.title}>איפוס הקורסים</Text><Text style={s.hint}>מחיקת כל הקורסים, המפגשים וההערות בחשבון שלך. הפעולה אינה הפיכה.</Text><TouchableOpacity disabled={busy} style={s.button} onPress={() => setConfirm(true)}><Text style={{ color: Colors.danger, fontFamily: 'Heebo_500Medium' }}>{busy ? 'רגע…' : 'מחיקת הקורסים שלי'}</Text></TouchableOpacity></View>
+      <Text style={s.hint}>CourseTrack · סביבת הלימודים שלך</Text>
+    </ScrollView>
+    <AcademicYearModal visible={showYear} current={academicYear} onSave={saveYear} onClose={() => setShowYear(false)} />
+    <ConfirmModal visible={confirm} title="מחיקת הקורסים שלי" message="כל הקורסים, המפגשים וההערות בחשבון הזה יימחקו לצמיתות. להמשיך?" confirmLabel="מחיקה לצמיתות" cancelLabel="ביטול" isDestructive onConfirm={remove} onCancel={() => setConfirm(false)} />
+  </SafeAreaView>;
 }
-;
-
-export default SettingsScreen;
-
-const styles = StyleSheet.create({
+const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.background },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  backBtn: { 
-    width: 48,
-    height: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: -Spacing.xs,
-    zIndex: 100,
-  },
-  backIcon: { fontSize: 28, color: Colors.primaryLight },
-  title: {
-    fontSize: FontSize.xl,
-    fontFamily: 'Heebo_700Bold',
-    color: Colors.text,
-  },
-  body: {
-    flex: 1,
-    padding: Spacing.md,
-    gap: Spacing.xl,
-  },
-  card: {
-    backgroundColor: Colors.card,
-    borderRadius: Radius.xl,
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
-    padding: Spacing.xl,
-    alignItems: 'center',
-    gap: Spacing.xs,
-    marginTop: Spacing.lg,
-  },
-  cardIcon: { fontSize: 48 },
-  cardTitle: {
-    fontSize: FontSize.xxl,
-    fontFamily: 'Heebo_700Bold',
-    color: Colors.text,
-  },
-  cardSub: {
-    fontSize: FontSize.md,
-    fontFamily: 'Heebo_400Regular',
-    color: Colors.textSecondary,
-  },
-  version: {
-    fontSize: FontSize.sm,
-    fontFamily: 'Heebo_400Regular',
-    color: Colors.textMuted,
-    marginTop: Spacing.sm,
-  },
-  section: { gap: Spacing.sm },
-  sectionTitle: {
-    fontSize: FontSize.sm,
-    fontFamily: 'Heebo_700Bold',
-    color: Colors.textMuted,
-    textAlign: 'right',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: Spacing.xs,
-  },
-  dangerBtn: {
-    backgroundColor: Colors.danger + '15',
-    borderWidth: 1,
-    borderColor: Colors.danger + '44',
-    borderRadius: Radius.md,
-    padding: Spacing.md,
-    alignItems: 'center',
-  },
-  dangerBtnStrong: {
-    backgroundColor: Colors.danger + '25',
-    borderColor: Colors.danger,
-  },
-  dangerBtnText: {
-    fontSize: FontSize.md,
-    fontFamily: 'Heebo_500Medium',
-    color: Colors.danger,
-  },
-  dangerBtnTextStrong: {
-    fontFamily: 'Heebo_700Bold',
-  },
-  dangerHint: {
-    fontSize: FontSize.xs,
-    fontFamily: 'Heebo_400Regular',
-    color: Colors.textMuted,
-    textAlign: 'right',
-    lineHeight: 18,
-  },
-  toolBtn: {
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: Radius.md,
-    padding: Spacing.md,
-    alignItems: 'center',
-    marginBottom: Spacing.sm,
-  },
-  toolBtnText: {
-    fontSize: FontSize.md,
-    fontFamily: 'Heebo_500Medium',
-    color: Colors.text,
-  },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 24 },
+  body: { padding: 24, gap: 22 }, card: { padding: 22, borderRadius: 20, backgroundColor: Colors.card, gap: 14, borderWidth: 1, borderColor: Colors.cardBorder },
+  title: { color: Colors.text, fontFamily: 'Heebo_700Bold', fontSize: 20, textAlign: 'right' },
+  text: { color: Colors.textSecondary, fontFamily: 'Heebo_400Regular', fontSize: 15, textAlign: 'right' },
+  hint: { color: Colors.textSecondary, fontFamily: 'Heebo_400Regular', fontSize: 13, textAlign: 'right', lineHeight: 23 },
+  link: { color: '#C4B5FD', fontFamily: 'Heebo_600SemiBold', textAlign: 'center' },
+  button: { padding: 14, borderRadius: 12, backgroundColor: Colors.background, alignItems: 'center' },
 });

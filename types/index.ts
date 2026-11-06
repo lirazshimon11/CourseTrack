@@ -3,6 +3,11 @@ export type SessionType = 'lecture' | 'exercise';
 export type AttendanceStatus = 'attended' | 'missed' | 'pending' | null;
 
 export interface AcademicYear {
+  institution_id?: string | null;
+  calendar_id?: string | null;
+  calendar_revision?: number | null;
+  date_mode?: 'manual' | 'calendar';
+  excluded_dates?: string[];
   id: string;
   label: string;
   semester_a_start: string | null;

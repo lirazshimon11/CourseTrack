@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { AcademicYear } from '../types';
+import { useFocusEffect } from 'expo-router';
 
 export function useAcademicYear() {
   const [academicYear, setAcademicYear] = useState<AcademicYear | null>(null);
@@ -8,23 +9,25 @@ export function useAcademicYear() {
 
   const fetchYear = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    const { data: profile } = await supabase.from('student_profiles').select('active_academic_year_id').maybeSingle();
+    let query = supabase
       .from('academic_years')
       .select('*')
       .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
-    if (!error && data) setAcademicYear(data);
+      .limit(1);
+    if (profile?.active_academic_year_id) query = query.eq('id', profile.active_academic_year_id);
+    const { data, error } = await query.maybeSingle();
+    if (!error) setAcademicYear(data);
     setLoading(false);
   }, []);
 
-  useEffect(() => { fetchYear(); }, [fetchYear]);
+  useFocusEffect(useCallback(() => { fetchYear(); }, [fetchYear]));
 
   const saveYear = async (year: Omit<AcademicYear, 'id' | 'created_at'>) => {
     if (academicYear) {
       const { data, error } = await supabase
         .from('academic_years')
-        .update(year)
+        .update({ ...year, date_mode: 'manual' })
         .eq('id', academicYear.id)
         .select()
         .single();

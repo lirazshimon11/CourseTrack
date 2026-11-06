@@ -125,7 +125,7 @@ export function generateSessions(
       const d = String(current.getDate()).padStart(2, '0');
       const dateStr = `${y}-${m}-${d}`;
 
-      if (current.getDay() === slot.day_of_week) {
+      if (current.getDay() === slot.day_of_week && !(academicYear.excluded_dates ?? []).includes(dateStr)) {
         sessions.push({
           course_id: courseId,
           type: slot.type as SessionType,

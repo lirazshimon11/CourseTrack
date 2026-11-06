@@ -19,7 +19,7 @@ import { Semester, Course, SlotData } from '../types';
 
 const HomeScreen = () => {
   const router = useRouter();
-  const { academicYear, saveYear } = useAcademicYear();
+  const { academicYear, saveYear, loading: yearLoading } = useAcademicYear();
   const { courses, loading, createCourse, deleteCourse, updateCourse, reorderCourses, moveCourse } = useCourses(academicYear?.id);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -91,7 +91,7 @@ const HomeScreen = () => {
           onPress={() => setShowYearModal(true)}
         >
           <Text style={styles.yearBtnIcon}>🎓</Text>
-          <Text style={styles.yearBtnText}>שנה {yearLabel}</Text>
+          <Text style={styles.yearBtnText}>{academicYear ? `שנה ${yearLabel}` : 'הגדרת סמסטר'}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.settingsBtn} onPress={() => router.push('/settings')}>
@@ -103,20 +103,22 @@ const HomeScreen = () => {
       <View style={styles.titleRow}>
         <Text style={styles.title}>הקורסים שלי</Text>
         <Text style={styles.subtitle}>
-          {courses.length === 0 ? 'לחץ + כדי להוסיף קורס' : `${courses.length} קורסים`}
+          {!academicYear ? 'בואו נכין את סביבת הלימודים שלך' : courses.length === 0 ? 'הסמסטר מוכן. עכשיו מוסיפים קורס ראשון' : `${courses.length} קורסים · ההתקדמות שלך מתחילה כאן`}
         </Text>
       </View>
 
       {/* Course list */}
-      {loading ? (
+      {loading || yearLoading ? (
         <View style={styles.center}>
           <ActivityIndicator color={Colors.primary} size="large" />
         </View>
       ) : courses.length === 0 ? (
         <View style={styles.emptyState}>
-          <Text style={styles.emptyIcon}>📚</Text>
-          <Text style={styles.emptyTitle}>אין קורסים עדיין</Text>
-          <Text style={styles.emptyText}>לחץ על הכפתור + למטה כדי ליצור קורס חדש</Text>
+          <Text style={styles.emptyIcon}>{academicYear ? '📚' : '🎓'}</Text>
+          <Text style={styles.stepLabel}>{academicYear ? 'שלב 2 מתוך 2' : 'שלב 1 מתוך 2'}</Text>
+          <Text style={styles.emptyTitle}>{academicYear ? 'מוסיפים את הקורס הראשון' : 'מתחילים מהסמסטר שלך'}</Text>
+          <Text style={styles.emptyText}>{academicYear ? 'בוחרים שם קורס ואת שעות הלימוד. רשימת השיעורים תיווצר אוטומטית.' : 'בוחרים את מוסד הלימודים ומשתמשים בלוח שלו, או מגדירים תאריכים אישיים.'}</Text>
+          <TouchableOpacity style={styles.startButton} onPress={() => academicYear ? setShowCreate(true) : router.push('/calendars')}><Text style={styles.startButtonText}>{academicYear ? '+ הוספת קורס ראשון' : 'בחירת מוסד ולוח אקדמי ←'}</Text></TouchableOpacity>
         </View>
       ) : (
         <ScrollView 
@@ -144,7 +146,7 @@ const HomeScreen = () => {
       {/* FAB */}
       <TouchableOpacity style={styles.fab} onPress={() => {
         if (!academicYear) {
-          setDeleteConfirm({ visible: true, courseId: 'YEAR_SETUP' });
+          setShowYearModal(true);
         } else {
           setShowCreate(true);
         }
@@ -201,6 +203,9 @@ const HomeScreen = () => {
 export default HomeScreen;
 
 const styles = StyleSheet.create({
+  stepLabel: { color: Colors.primaryLight, fontFamily: 'Heebo_600SemiBold', fontSize: 13 },
+  startButton: { backgroundColor: Colors.primary, padding: 16, borderRadius: 14, marginTop: 16, minWidth: 230, alignItems: 'center' },
+  startButtonText: { color: Colors.text, fontFamily: 'Heebo_600SemiBold', fontSize: 15 },
   root: { flex: 1, backgroundColor: Colors.background, paddingTop: 22 },
   topBar: {
     flexDirection: 'row',

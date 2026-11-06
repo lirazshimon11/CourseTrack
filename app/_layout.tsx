@@ -11,6 +11,7 @@ import {
   Heebo_700Bold,
 } from '@expo-google-fonts/heebo';
 import { Colors } from '../constants/theme';
+import { AuthGate } from '../components/AuthGate';
 
 // Force RTL for Hebrew
 I18nManager.forceRTL(true);
@@ -68,14 +69,14 @@ export default function RootLayout() {
       <View style={styles.root}>
         <View style={styles.container}>
           <StatusBar style="light" backgroundColor={Colors.background} />
-          <Stack
+          <AuthGate><Stack
             screenOptions={{
               headerShown: false,
               headerShadowVisible: false,
               contentStyle: { backgroundColor: Colors.background },
               animation: Platform.OS === 'web' ? 'fade' : 'slide_from_right',
             }}
-          />
+          /></AuthGate>
         </View>
       </View>
     </SafeAreaProvider>
