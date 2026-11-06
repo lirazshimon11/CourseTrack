@@ -28,6 +28,7 @@ export default function CalendarsScreen() {
   const [busy,setBusy]=useState(false);
   const [loadError,setLoadError]=useState('');
   const [message,setMessage]=useState('');
+  const [diagnostics,setDiagnostics]=useState<{ok:boolean;checked_at:string;scope:string;checks:{id:string;status:string;label:string;detail:string}[]}|null>(null);
   const [editor,setEditor]=useState<{mode:'personal'|'shared';current:AcademicYear|null}|null>(null);
   const [adopt,setAdopt]=useState<InstitutionCalendar|null>(null);
   const [review,setReview]=useState<CalendarRun|null>(null);
@@ -113,6 +114,19 @@ export default function CalendarsScreen() {
     if (!response.ok) throw new Error(result.error ?? result.results?.[0]?.message ?? 'הסנכרון נכשל');
     if(result.results?.[0]?.status==='skipped') throw new Error(result.results[0].message);
   },'בדיקת המקור הסתיימה. התוצאה מופיעה ביומן הסנכרון.');
+  const diagnose = async () => {
+    setBusy(true);setMessage('');setDiagnostics(null);
+    try {
+      const {data:{session}}=await supabase.auth.getSession();
+      const response=await fetch('/api/calendar-sync',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${session?.access_token??''}`},body:JSON.stringify({action:'diagnostics'})});
+      if (!(response.headers.get('content-type')??'').includes('application/json')) throw new Error('הבדיקה זמינה בפריסה ב־Vercel או ב־vercel dev, ולא בשרת Expo.');
+      const result=await response.json();
+      if(!response.ok) throw new Error(result.error??'בדיקת החיבור נכשלה');
+      if(!result.diagnostics) throw new Error('השרת עדיין אינו מכיל את עדכון בדיקת החיבור. יש לפרוס את הגרסה החדשה.');
+      setDiagnostics(result.diagnostics);
+    } catch(e:any) {setMessage(e.message||'לא ניתן להשלים את בדיקת החיבור.');}
+    finally {setBusy(false);}
+  };
 
   if (loading) return <View style={s.center}><ActivityIndicator color={Colors.primaryLight}/></View>;
   if (loadError) return <View style={s.center}><Text style={s.text}>{loadError}</Text><Button title="ניסיון נוסף" onPress={reload}/><Button title="חזרה" onPress={()=>router.replace('/settings')}/></View>;
@@ -153,6 +167,17 @@ export default function CalendarsScreen() {
       <View style={s.card}><Button title={showProfile?'סגירת הפרטים האקדמיים':'עריכת הפרטים האקדמיים שלי'} onPress={()=>setShowProfile(!showProfile)}/>
         {showProfile && <>{profileFields.map(([key,label])=><View key={key}><Text style={s.hint}>{label}</Text><TextInput accessibilityLabel={label} style={s.input} value={profile[key]??''} maxLength={200} onChangeText={v=>setProfile(p=>({...p,[key]:v}))}/></View>)}<Button title="שמירת הפרטים שלי" disabled={busy} onPress={()=>action(()=>saveProfile(),'הפרטים נשמרו בחשבון שלך.')}/></>}
       </View>
+      {admin && <View style={s.card}>
+        <Text style={s.title}>בדיקת חיבור והרשאות</Text>
+        <Text style={s.hint}>בדיקה נפרדת של החיבור מ־Vercel ל־Supabase, בלי לפנות ל־HIT ובלי לשנות נתונים.</Text>
+        <Button title="בדיקת חיבור והרשאות עכשיו" disabled={busy} onPress={diagnose}/>
+        {diagnostics && <View accessibilityRole="alert" style={s.item}>
+          <Text style={s.subtitle}>{diagnostics.ok?'✓ בדיקות החיבור עברו':'חלק מבדיקות החיבור נכשלו'}</Text>
+          <Text style={s.hint}>{dateTime(diagnostics.checked_at)}</Text>
+          {diagnostics.checks.map(c=><View key={c.id}><Text style={s.text}>{c.status==='pass'?'✓':'✕'} {c.label}</Text><Text style={s.hint}>{c.detail}</Text></View>)}
+          <Text style={s.hint}>{diagnostics.scope}</Text>
+        </View>}
+      </View>}
       {admin && <View style={s.card}>
         <Text style={s.title}>ניהול מוסדות ולוחות</Text><Text style={s.hint}>עריכות כאן משותפות לכל המשתמשים. תאריכים אישיים לא נדרסים.</Text>
         <TextInput accessibilityLabel="שם מוסד חדש" placeholder="שם מוסד חדש" placeholderTextColor={Colors.textMuted} style={s.input} value={newName} onChangeText={setNewName}/>

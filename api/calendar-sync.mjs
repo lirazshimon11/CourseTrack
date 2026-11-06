@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { timingSafeEqual } from 'node:crypto';
 import { syncSource } from '../server/calendar-sync.mjs';
+import { calendarDiagnostics } from '../server/calendar-diagnostics.mjs';
 
 export function matchesSecret(header, secret) {
   if (!secret || typeof header !== 'string') return false;
@@ -8,25 +9,29 @@ export function matchesSecret(header, secret) {
   return a.length===b.length && timingSafeEqual(a,b);
 }
 
-export default async function handler(req, res) {
+export function createCalendarHandler({ clientFactory = createClient, getEnv = () => process.env, runSync = syncSource } = {}) {
+return async function handler(req, res) {
   res.setHeader('Cache-Control','no-store');
   if (!['GET','POST'].includes(req.method)) return res.status(405).json({ error:'Method not allowed' });
-  const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY, CRON_SECRET } = process.env;
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !SUPABASE_ANON_KEY || !CRON_SECRET)
+  const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY, CRON_SECRET } = getEnv();
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY)
     return res.status(503).json({ error:'חסרות הגדרות שרת לסנכרון. ראו את מדריך ההתקנה.' });
   try {
+    const diagnostics = req.method === 'POST' && req.body?.action === 'diagnostics';
     const cron = matchesSecret(req.headers.authorization,CRON_SECRET);
-    if (!cron) {
+    if (!cron || diagnostics) {
       if (req.method !== 'POST') return res.status(401).json({ error:'Authentication required' });
       const token = req.headers.authorization?.replace(/^Bearer /,'');
       if (!token) return res.status(401).json({ error:'Authentication required' });
-      const userDb = createClient(SUPABASE_URL,SUPABASE_ANON_KEY,{ global:{headers:{Authorization:`Bearer ${token}`}}, auth:{persistSession:false,autoRefreshToken:false} });
+      const userDb = clientFactory(SUPABASE_URL,SUPABASE_ANON_KEY,{ global:{headers:{Authorization:`Bearer ${token}`}}, auth:{persistSession:false,autoRefreshToken:false} });
       const { data, error } = await userDb.auth.getUser(token);
       if (error || !data.user) return res.status(401).json({ error:'Authentication required' });
       const role = await userDb.rpc('is_app_admin');
       if (role.error || role.data !== true) return res.status(403).json({ error:'Administrator required' });
     }
-    const db = createClient(SUPABASE_URL,SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
+    const db = SUPABASE_SERVICE_ROLE_KEY ? clientFactory(SUPABASE_URL,SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false,autoRefreshToken:false}}) : null;
+    if (diagnostics) return res.status(200).json({ diagnostics:await calendarDiagnostics({db,cronSecret:CRON_SECRET}) });
+    if (!db || !CRON_SECRET) return res.status(503).json({ error:'חסרות הגדרות שרת לסנכרון. הפעילו בדיקת חיבור והרשאות.' });
     let query = db.from('calendar_sources').select('*').eq('enabled',true).order('last_checked_at',{ascending:true,nullsFirst:true}).limit(1);
     // One bounded HIT source per run. Other institutions currently use manual calendars.
     if (!cron) {
@@ -41,8 +46,11 @@ export default async function handler(req, res) {
       if (source.last_checked_at && Date.now()-new Date(source.last_checked_at).getTime()<10*60*1000) {
         results.push({status:'skipped',message:'בוצעה בדיקה לאחרונה. אפשר לנסות שוב לאחר עשר דקות.'}); continue;
       }
-      results.push(await syncSource(db,source));
+      results.push(await runSync(db,source));
     }
     return res.status(results.some(r=>r.status==='failed') ? 502 : 200).json({ results });
   } catch { return res.status(500).json({ error:'הסנכרון נכשל. בדקו את הגדרות השרת ואת טבלת הריצות.' }); }
+};
 }
+
+export default createCalendarHandler();
