@@ -26,6 +26,27 @@ export function extractHtml(html, baseUrl) {
     }
   });
   $('script, style, nav, header, footer, noscript').remove();
+  // HIT keeps previous years in a dropdown and next year's first day among the
+  // events. Only the selected heading identifies the calendar being published.
+  const selectedYear = normalize($('main .top .year_cal').first().text());
+  const sections = $('main .lists .sem');
+  if (selectedYear && sections.length) {
+    const lines = [`לוח השנה האקדמית ${selectedYear}`];
+    sections.each((_, section) => {
+      const semester = normalize($(section).children('h2').first().text());
+      lines.push(semester);
+      $(section).find('.events > .line').each((_, row) => {
+        const title = normalize($(row).children('.title').find('span').first().text());
+        const dates = normalize($(row).children('.dates').text());
+        const info = normalize($(row).children('.info').text());
+        const boundary = title.match(/^היום (הראשון|האחרון) (?:ללימודים|לסמסטר(?:\s+(?:[אבג]['"]?|קיץ))?)$/);
+        lines.push(boundary
+          ? `${boundary[1] === 'הראשון' ? 'תחילת' : 'סיום'} ${semester} ${dates}`
+          : `${title} ${dates} ${info}`);
+      });
+    });
+    return { text: lines.join('\n'), pdfLinks: [...new Set(pdfLinks)], printLinks: [...new Set(printLinks)] };
+  }
   const root = $('main').length ? $('main').first() : $('body');
   root.find('br').replaceWith('\n');
   // Preserve row boundaries; concatenate individual table cells on the same line.
@@ -36,7 +57,7 @@ export function extractHtml(html, baseUrl) {
 
 export function parseCalendar(text) {
   const lines = text.split(/\r?\n/).map(normalize).filter(Boolean);
-  const headingLines = lines.filter(l => /(?:שנת הלימודים|שנה אקדמית|השנה האקדמית|לוח אקדמי|לוח השנה|שנה"ל)/.test(l));
+  const headingLines = lines.filter(l => /^(?:שנת הלימודים|שנה אקדמית|השנה האקדמית|לוח אקדמי|לוח השנה|לוח שנה|שנה"ל)/.test(l));
   const years = new Set();
   for (const heading of headingLines) {
     const hebrew = heading.match(/תש[א-ת"']{1,5}/g) ?? [];
@@ -59,8 +80,8 @@ export function parseCalendar(text) {
     const semester = line.match(/סמסטר\s*(?:ה)?(קיץ|[אבג])(?:['"]|\s|$)/);
     if (semester) context = ({ א:'a', ב:'b', ג:'c', קיץ:'c' })[semester[1]];
     const dates = datesIn(line);
-    const start = /(?:תחילת|פתיחת|תחילת הלימודים|יום ראשון ללימודים)/.test(line);
-    const end = /(?:סיום|תום|יום אחרון ללימודים)/.test(line);
+    const start = /^(?:(?:תחילת|פתיחת)\s+(?:סמסטר|הלימודים)|יום ראשון ללימודים)/.test(line);
+    const end = /^(?:(?:סיום|תום)\s+(?:סמסטר|הלימודים)|יום אחרון ללימודים)/.test(line);
     const exams = /בחינ/.test(line);
     if ((start || end) && !exams && context && /סמסטר|לימודים/.test(line)) {
       const adjacent = dates.length ? dates : datesIn(lines[i+1] ?? '');
@@ -69,7 +90,7 @@ export function parseCalendar(text) {
       if (result[key] && result[key] !== adjacent[0]) throw new Error('נמצאו תאריכים סותרים לאותו סמסטר');
       result[key] = adjacent[0];
     }
-    if (/חופש[הת]|לא יתקיימו לימודים|אין לימודים|הפסקת לימודים|יום שבתון/.test(line)) {
+    if (/^חופשת\s|(?:^|\s)חופשה(?:\s|$)|לא יתקיימו לימודים|אין לימודים|הפסק[הת] לימודים|הפסקות לימודים|יום שבתון|לימודים מסתיימים|הלימודים מסתיימים/.test(line)) {
       if (/שעה|\d{1,2}:\d{2}|מתכונת|השלמ|למעט|בחלק/.test(line) || dates.length < 1 || dates.length > 2) {
         warnings.push(`חריג דורש בדיקה: ${line}`); continue;
       }
@@ -78,7 +99,7 @@ export function parseCalendar(text) {
       if (days < 0 || days > 35) { warnings.push(`טווח חופשה דורש בדיקה: ${line}`); continue; }
       for (let day = 0; day <= days; day++) result.excluded_dates.push(new Date(+from + day*86400000).toISOString().slice(0,10));
     }
-    if (/מתכונת|השלמת|הוראה של יום/.test(line)) warnings.push(`שינוי מערכת דורש בדיקה: ${line}`);
+    if (/מתכונת|השלמ[הת]|הוראה של יום|הלימודים יתקיימו בזום/.test(line)) warnings.push(`שינוי מערכת דורש בדיקה: ${line}`);
   }
   for (const semester of ['a','b','c']) {
     const start = result[`semester_${semester}_start`], end = result[`semester_${semester}_end`];
@@ -90,7 +111,7 @@ export function parseCalendar(text) {
   if (result.semester_b_start <= result.semester_a_end || (result.semester_c_start && result.semester_c_start <= result.semester_b_end)) throw new Error('סמסטרים חופפים');
   result.excluded_dates = [...new Set(result.excluded_dates)].sort();
   if (result.excluded_dates.some(d => d < `${start_year}-08-01` || d > `${start_year+1}-12-31`)) throw new Error('חופשה מחוץ לשנת הלימודים');
-  result.notes = lines.filter(l => /חופש|לימודים|בחינ|סמסטר|מתכונת|שבתון/.test(l)).join('\n').slice(0,16000);
+  result.notes = lines.filter(l => /חופש|לימודים|בחינ|סמסטר|מתכונת|שבתון|השלמ|זום/.test(l)).join('\n').slice(0,16000);
   return { calendar: result, warnings: [...new Set(warnings)] };
 }
 

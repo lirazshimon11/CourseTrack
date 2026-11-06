@@ -14,7 +14,7 @@ Hebrew RTL course and lesson tracker built with Expo Router, React Native Web an
 - Email/password accounts with per-user data access enforced by Supabase RLS.
 - Shared calendars organized by institution and academic year, with personal date overrides and excluded study dates.
 - Administrator tools for institutions, calendars, synchronization review and connection diagnostics.
-- A weekly calendar synchronization function on Vercel. The HIT adapter still requires validation against the live source before automatic publication is enabled.
+- A weekly calendar synchronization function on Vercel. The HIT adapter was validated against the live 2026–2027 calendar on 2026-11-06; its first publication and partial-day/special-schedule exceptions still require administrator review.
 
 ## Tech stack
 

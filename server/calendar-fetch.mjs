@@ -1,3 +1,5 @@
+import { fetchHit } from './hit-tls.mjs';
+
 // Only a supported public institutional host can be fetched. Redirects are checked too.
 export function assertSourceUrl(value) {
   const u = new URL(value);
@@ -6,7 +8,7 @@ export function assertSourceUrl(value) {
   return u;
 }
 
-export async function fetchDocument(url, maxBytes = 6_000_000, fetcher = fetch) {
+export async function fetchDocument(url, maxBytes = 6_000_000, fetcher = fetchHit) {
   for (let redirect = 0; redirect <= 3; redirect++) {
     assertSourceUrl(url);
     const response = await fetcher(url, { redirect: 'manual', signal: AbortSignal.timeout(12000), headers: { 'User-Agent': 'CourseTrackCalendar/1.0', Accept: 'text/html,application/pdf' } });

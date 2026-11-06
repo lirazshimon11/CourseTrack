@@ -34,6 +34,7 @@ yarn-error.*
 .env*.local
 .env
 .vercel/
+.local-diagnostics/
 
 # typescript
 *.tsbuildinfo
