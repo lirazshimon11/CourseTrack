@@ -187,7 +187,6 @@ export default function ImportScreen() {
           </Text>
           {!academicYear && context.institutionId && (
             <CalendarRecovery
-              institutionId={context.institutionId}
               onRefresh={context.refresh}
             />
           )}

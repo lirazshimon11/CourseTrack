@@ -1,14 +1,31 @@
 import { fetchHit } from './hit-tls.mjs';
+import { Agent, fetch as publicFetch } from 'undici';
+import { lookup } from 'node:dns';
+
+// Resolve and validate at connection time, including redirect destinations.
+const publicAgent = new Agent({ connect: { lookup(hostname, options, callback) {
+  lookup(hostname, { ...options, family: 4, all: true }, (error, addresses) => {
+    if (error) return callback(error);
+    const safe = addresses.filter(({address}) => {
+      const [a,b] = address.split('.').map(Number);
+      return a>0 && a<224 && a!==10 && a!==127 && !(a===169 && b===254) && !(a===172 && b>=16 && b<=31) && !(a===192 && (b===168 || b===0)) && !(a===100 && b>=64 && b<=127) && !(a===198 && (b===18 || b===19));
+    });
+    if (!safe.length || safe.length !== addresses.length) return callback(new Error('כתובת המקור אינה ציבורית'));
+    if (options.all) callback(null,safe); else callback(null,safe[0].address,4);
+  });
+} } });
+const fetchInstitution = (url, options) => ['hit.ac.il','www.hit.ac.il'].includes(new URL(url).hostname)
+  ? fetchHit(url,options) : publicFetch(url,{...options,dispatcher:publicAgent});
 
 // Only a supported public institutional host can be fetched. Redirects are checked too.
 export function assertSourceUrl(value) {
   const u = new URL(value);
-  if (u.protocol !== 'https:' || !['www.hit.ac.il','hit.ac.il'].includes(u.hostname) || u.port || u.username || u.password)
-    throw new Error('כתובת המקור אינה נתמכת. כרגע הסנכרון האוטומטי תומך ב־HIT בלבד.');
+  if (u.protocol !== 'https:' || !/^(?:[a-z0-9-]+\.)+ac\.il$/.test(u.hostname) || u.port || u.username || u.password)
+    throw new Error('יש להזין קישור HTTPS לאתר מוסד אקדמי בדומיין ac.il.');
   return u;
 }
 
-export async function fetchDocument(url, maxBytes = 6_000_000, fetcher = fetchHit) {
+export async function fetchDocument(url, maxBytes = 6_000_000, fetcher = fetchInstitution) {
   for (let redirect = 0; redirect <= 3; redirect++) {
     assertSourceUrl(url);
     const response = await fetcher(url, { redirect: 'manual', signal: AbortSignal.timeout(12000), headers: { 'User-Agent': 'CourseTrackCalendar/1.0', Accept: 'text/html,application/pdf' } });

@@ -5,6 +5,7 @@ import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { resolve, sep } from "node:path";
 const root = resolve(".");
+const port = Number(process.env.PREVIEW_PORT || 8082);
 const result = await build({
   stdin: {
     contents: `import React from 'react';import {createRoot} from 'react-dom/client';import Settings from './app/settings';import Calendars from './app/calendars';import Admin from './app/admin';import Import from './app/import';const Component=({'/settings':Settings,'/calendars':Calendars,'/admin':Admin,'/import':Import})[location.pathname]||Settings;createRoot(document.getElementById('root')).render(<Component/>);`,
@@ -39,7 +40,7 @@ const result = await build({
                 : a.path.endsWith("useAcademicYear")
                   ? `import {year} from './scripts/preview-fixtures';export const useAcademicYear=()=>({academicYear:year,loading:false});`
                   : a.path.endsWith("useCourses")
-                    ? `export const useCourses=()=>({deleteAllData:async()=>{}});`
+                    ? `export const useCourses=()=>({loading:false,courses:[{id:'preview',name:'עיבוד אותות ספרתי',semester:'א',color:'#3B82F6',credits:3.5,course_code:'50060-1',slots_data:[{type:'lecture',day_of_week:0,start_time:'08:00',end_time:'11:00',lecturer:'ד״ר כץ גלעד',room:'201'},{type:'exercise',day_of_week:0,start_time:'11:00',end_time:'12:00',lecturer:'דנילוב רומן'}]},{id:'preview2',name:'אותות אקראיים',semester:'א',color:'#F59E0B',slots_data:[{type:'lecture',day_of_week:3,start_time:'13:00',end_time:'16:00'},{type:'exercise',day_of_week:3,start_time:'12:00',end_time:'13:00'}]}],deleteAllData:async()=>{}});`
                     : `export {supabase} from './scripts/preview-fixtures';`,
         }));
       },
@@ -84,6 +85,6 @@ createServer(async (req, res) => {
     res.statusCode = 404;
     res.end("Not found");
   }
-}).listen(8082, "127.0.0.1", () =>
-  console.log("Isolated UI preview: http://127.0.0.1:8082/settings"),
+}).listen(port, "127.0.0.1", () =>
+  console.log(`Isolated UI preview: http://127.0.0.1:${port}/settings`),
 );

@@ -140,5 +140,34 @@ test('migrations and real Postgres RLS: users, institutions, personal copies, ad
     assert.equal((await db.query("select count(*)::int as n from courses where import_key='First'")).rows[0].n,0);
     assert.equal((await asUser(A,tx=>tx.query('select study_year from student_profiles'))).rows[0].study_year,'ג');
 
+    const sourceId=(await db.query('select id from calendar_sources where institution_id=$1',[hit])).rows[0].id;
+    await db.query("insert into calendar_sync_runs(source_id,status,created_at) select $1,'published',now()-n*interval '1 minute' from generate_series(1,25) n",[sourceId]);
+    await db.exec(await readFile(new URL('../supabase/migrations/202611070006_management_and_export.sql',import.meta.url),'utf8'));
+    assert.equal((await db.query('select count(*)::int n from calendar_sync_runs where source_id=$1',[sourceId])).rows[0].n,10,'migration prunes existing history');
+    await db.query("insert into calendar_sync_runs(source_id,status,message) values($1,'failed','newest')",[sourceId]);
+    assert.equal((await db.query('select count(*)::int n from calendar_sync_runs where source_id=$1',[sourceId])).rows[0].n,10,'all statuses are capped');
+    assert.equal((await db.query('select message from calendar_sync_runs where source_id=$1 order by created_at desc limit 1',[sourceId])).rows[0].message,'newest');
+    await assert.rejects(asUser(A,tx=>tx.query("select add_calendar_institution('Example','https://example.ac.il/calendar')")));
+    const created=(await asUser(ADMIN,tx=>tx.query("select add_calendar_institution('Example','https://example.ac.il/calendar') id"))).rows[0].id;
+    assert.equal((await db.query('select adapter from calendar_sources where institution_id=$1',[created])).rows[0].adapter,'academic-v1');
+    await assert.rejects(asUser(ADMIN,tx=>tx.query("select add_calendar_institution('Invalid','https://localhost/')")));
+    await assert.rejects(asUser(A,tx=>tx.query('select delete_calendar_institution($1)',[hit])));
+    await db.query("insert into sessions(course_id,notes,attendance) select $1,'הערה '||n,case when n%2=0 then 'attended' else 'missed' end from generate_series(1,1005) n",[importedId]);
+    const exported=(await asUser(A,tx=>tx.query('select export_my_courses() data'))).rows[0].data;
+    assert.ok(exported.courses.every(c=>c.user_id===A));
+    const exportedCourse=exported.courses.find(c=>c.id===importedId);
+    assert.ok(exportedCourse.sessions.length>1000,'JSON aggregate is not truncated by REST row limits');
+    assert.ok(exportedCourse.sessions.some(s=>s.notes==='הערה 1005'&&s.attendance==='missed'));
+    const otherExport=(await asUser(B,tx=>tx.query('select export_my_courses() data'))).rows[0].data;
+    assert.ok(otherExport.courses.every(c=>c.user_id===B));
+    await assert.rejects(asUser(null,tx=>tx.query('select export_my_courses()'),'anon'));
+    const beforeDelete=(await db.query('select * from courses order by id')).rows;
+    const sessionsBefore=(await db.query('select * from sessions order by id')).rows;
+    await db.query('update calendar_sources set lease_until=null where institution_id=$1',[hit]);
+    await asUser(ADMIN,tx=>tx.query('select delete_calendar_institution($1)',[hit]));
+    assert.deepEqual((await db.query('select * from courses order by id')).rows,beforeDelete);
+    assert.deepEqual((await db.query('select * from sessions order by id')).rows,sessionsBefore);
+    assert.equal((await db.query('select date_mode from academic_years where id=$1',[yearA])).rows[0].date_mode,'manual');
+    assert.equal((await db.query('select count(*)::int n from institutions where id=$1',[hit])).rows[0].n,0);
   } finally { await db.close(); }
 });

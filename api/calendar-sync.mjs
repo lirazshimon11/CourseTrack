@@ -40,8 +40,7 @@ return async function handler(req, res) {
       // A missing diagnostics table must not prevent an otherwise valid calendar fetch.
       if(saved.error)warnings.push('לא ניתן לשמור את בדיקת החיבור בטבלת calendar_health. בדקו את עדכון מסד הנתונים.');
     }
-    let query = db.from('calendar_sources').select('*').eq('enabled',true).order('last_checked_at',{ascending:true,nullsFirst:true}).limit(1);
-    // One bounded HIT source per run. Other institutions currently use manual calendars.
+    let query = db.from('calendar_sources').select('*').eq('enabled',true).order('last_checked_at',{ascending:true,nullsFirst:true});
     if (!cron) {
       const id = req.body?.source_id;
       if (typeof id !== 'string' || !/^[0-9a-f-]{36}$/i.test(id)) return res.status(400).json({error:'מקור חסר או לא תקין'});
@@ -49,13 +48,16 @@ return async function handler(req, res) {
     }
     const { data:sources,error } = await query;
     if (error) throw error;
-    const results=[];
-    for (const source of sources) {
+    // Daily dispatch, but a source is due only on every second calendar day.
+    // UTC day buckets avoid execution jitter pushing the next run to day three.
+    const due = sources.filter(source => !cron || !source.last_checked_at ||
+      Math.floor(Date.now()/86400000)-Math.floor(new Date(source.last_checked_at).getTime()/86400000)>=2);
+    const results=await Promise.all(due.map(async source => {
       if (source.last_checked_at && Date.now()-new Date(source.last_checked_at).getTime()<10*60*1000) {
-        results.push({status:'skipped',message:'בוצעה בדיקה לאחרונה. אפשר לנסות שוב לאחר עשר דקות.'}); continue;
+        return {status:'skipped',message:'בוצעה בדיקה לאחרונה. אפשר לנסות שוב לאחר עשר דקות.'};
       }
-      results.push(await runSync(db,source));
-    }
+      return runSync(db,source);
+    }));
     return res.status(results.some(r=>r.status==='failed') ? 502 : 200).json({ results, ...(warnings.length?{warnings}:{}) });
   } catch { return res.status(500).json({ error:'הסנכרון נכשל. בדקו את הגדרות השרת ואת טבלת הריצות.' }); }
 };

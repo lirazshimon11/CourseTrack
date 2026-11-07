@@ -4,9 +4,13 @@ import { extractPdf, fetchDocument } from './calendar-fetch.mjs';
 function check(result) { if (result.error) throw new Error(result.error.message); return result.data; }
 
 export async function readSource(source, fetcher = fetchDocument, pdfExtractor = extractPdf) {
-  if (source.adapter !== 'hit-v1') throw new Error('מתאם המקור אינו נתמך');
+  if (!['hit-v1','academic-v1'].includes(source.adapter)) throw new Error('מתאם המקור אינו נתמך');
   const document = await fetcher(source.page_url);
-  if (document.contentType.includes('application/pdf')) throw new Error('יש להגדיר עמוד לוח קבוע, לא כתובת PDF שנתית');
+  if (document.contentType.includes('application/pdf')) {
+    if (source.adapter === 'hit-v1') throw new Error('יש להגדיר עמוד לוח קבוע, לא כתובת PDF שנתית');
+    const text = await pdfExtractor(document.bytes);
+    return { ...parseCalendar(text), source_url:document.url, source_hash:sourceHash(text) };
+  }
   const html = extractHtml(document.bytes.toString('utf8'), document.url);
   try { return { ...parseCalendar(html.text), source_url: document.url, source_hash: sourceHash(html.text) }; }
   catch (htmlError) {
@@ -26,7 +30,7 @@ export async function syncSource(db, source, reader = readSource) {
   let success = false;
   try {
     const institution = check(await db.from('institutions').select('slug').eq('id',source.institution_id).single());
-    if (institution.slug !== 'hit') throw new Error('מתאם HIT אינו מתאים למוסד שבמקור הזה');
+    if (source.adapter !== 'academic-v1' && institution.slug !== 'hit') throw new Error('מתאם HIT אינו מתאים למוסד שבמקור הזה');
     const parsed = await reader(source);
     const candidate = { ...parsed.calendar, institution_id: source.institution_id, source_url: parsed.source_url, source_hash: parsed.source_hash, origin: 'sync' };
     const existing = check(await db.from('institution_calendars').select('*').eq('institution_id', source.institution_id).eq('start_year', candidate.start_year).maybeSingle());
@@ -53,8 +57,6 @@ export async function syncSource(db, source, reader = readSource) {
     return { status:'failed', message };
   } finally {
     check(await db.from('calendar_sources').update({ lease_until:null, last_checked_at:new Date().toISOString(), ...(success ? {last_success_at:new Date().toISOString()} : {}) }).eq('id',source.id));
-    // Retain pending reviews, discard old routine logs to keep storage bounded.
-    const cutoff = new Date(Date.now()-90*86400000).toISOString();
-    check(await db.from('calendar_sync_runs').delete().eq('source_id',source.id).in('status',['failed','unchanged']).lt('created_at',cutoff));
+    // The database insert trigger retains only the latest 10 runs per source.
   }
 }

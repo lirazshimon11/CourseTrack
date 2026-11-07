@@ -75,3 +75,16 @@ test('health-log write failure does not block a valid source sync',async()=>{
  await handler({method:'GET',headers:{authorization:`Bearer ${settings.CRON_SECRET}`}},res);
  assert.equal(calls,1);assert.equal(res.code,200);assert.equal(res.body.warnings.length,1);
 });
+
+test('scheduled dispatch checks every due source every two days, across month boundaries',async()=>{
+ const originalNow=Date.now; Date.now=()=>Date.parse('2027-03-01T05:00:00Z');
+ try {
+  const sources=[{id:'due1',last_checked_at:'2027-02-27T05:00:03Z'},{id:'due2',last_checked_at:'2027-02-26T05:00:00Z'},{id:'new',last_checked_at:null},{id:'recent',last_checked_at:'2027-02-28T05:00:00Z'}];
+  const calls=[];
+  const db={from(table){const q={select:()=>q,eq:()=>q,order:()=>q,limit:()=>q,then:fn=>Promise.resolve({data:table==='calendar_sources'?sources:[],error:null}).then(fn),upsert:async()=>({error:null})};return q;}};
+  const handler=createCalendarHandler({clientFactory:()=>db,getEnv:()=>settings,runSync:async(_,source)=>{calls.push(source.id);return {status:'unchanged'};}});
+  const res={setHeader(){},status(){return this;},json(v){this.body=v;return this;}};
+  await handler({method:'GET',headers:{authorization:`Bearer ${settings.CRON_SECRET}`}},res);
+  assert.deepEqual(calls.sort(),['due1','due2','new']);
+ } finally {Date.now=originalNow;}
+});

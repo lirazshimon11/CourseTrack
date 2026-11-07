@@ -66,7 +66,7 @@ export const supabase = {
     getSession: async () => ({ data: { session: null } }),
     signOut: async () => ({ error: null }),
   },
-  rpc: async (name) => ({ data: name === "is_app_admin" && !location.search.includes("user=1"), error: null }),
+  rpc: async (name) => ({ data: name === 'export_my_courses' ? {format:'CourseTrack',version:1,exported_at:new Date().toISOString(),academic_years:[year],courses:[{id:'demo',name:'קורס לדוגמה',sessions:[{id:'demo-session',attendance:'attended',notes:'הערת דוגמה'}]}]} : name === "is_app_admin" && !location.search.includes("user=1"), error: null }),
   from(name) {
     const chain = new Proxy(
       {

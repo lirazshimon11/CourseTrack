@@ -1,10 +1,11 @@
 import React, { useState } from "react";
-import { Text, TouchableOpacity, View } from "react-native";
+import { Platform, Text, TouchableOpacity, View } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { supabase } from "../lib/supabase";
 import { useAcademicYear } from "../hooks/useAcademicYear";
 import { useCourses } from "../hooks/useCourses";
 import { ConfirmModal } from "../components/ConfirmModal";
+import { TimetableExport } from "../components/TimetableExport";
 import { Page, ui, Action, Badge, Disclosure } from "../components/SettingsUI";
 export default function SettingsScreen() {
   const router = useRouter();
@@ -15,12 +16,25 @@ export default function SettingsScreen() {
   } | null>(null);
   const [institutionLoading, setInstitutionLoading] = useState(true);
   const [institutionError, setInstitutionError] = useState(false);
-  const { deleteAllData } = useCourses();
+  const { courses, loading: coursesLoading, deleteAllData } = useCourses(academicYear?.id);
   const [email, setEmail] = useState("");
   const [admin, setAdmin] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [exporting, setExporting] = useState(false);
+  const exportCourses = async () => {
+    setExporting(true); setMessage('');
+    try {
+      const { data, error } = await supabase.rpc('export_my_courses');
+      if (error || !data) throw new Error('לא ניתן לייצא את הנתונים. בדקו את החיבור ושהמערכת מעודכנת.');
+      const url = URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json;charset=utf-8'}));
+      const link = document.createElement('a'); link.href=url; link.download=`CourseTrack-backup-${new Date().toISOString().slice(0,10)}.json`;
+      document.body.appendChild(link); link.click(); link.remove(); setTimeout(()=>URL.revokeObjectURL(url),60000);
+      setMessage('קובץ הנתונים מוכן והועבר להורדה.');
+    } catch(e) { setMessage(e instanceof Error ? e.message : 'הייצוא נכשל. נסו שוב.'); }
+    finally { setExporting(false); }
+  };
   useFocusEffect(
     React.useCallback(() => {
       let active = true;
@@ -95,6 +109,7 @@ export default function SettingsScreen() {
           onPress={() => router.push("/import")}
         />
       </View>
+      {!yearLoading && !coursesLoading && <TimetableExport courses={courses} yearLabel={academicYear?.label ?? 'הקורסים שלי'} />}
       <Text style={ui.subtitle}>הלימודים שלי</Text>
       <View style={ui.card}>
         {!institutionLoading && !institutionError && institution && (
@@ -149,19 +164,11 @@ export default function SettingsScreen() {
           }}
         />
       </Disclosure>
-      {admin && (
-        <View style={[ui.card, { borderColor: "#30516F" }]}>
-          <Text style={[ui.subtitle, { color: "#7DD3FC" }]}>מרכז ניהול</Text>
-          <Text style={ui.text}>
-            לוחות לכל המוסדות, סנכרון אוטומטי ובדיקות חיבור. זמין למנהלים בלבד.
-          </Text>
-          <Action
-            secondary
-            title="כניסה למרכז הניהול"
-            onPress={() => router.push("/admin")}
-          />
-        </View>
-      )}
+      <View style={ui.card}>
+        <Text style={ui.subtitle}>ייצוא כל נתוני הקורסים שלי</Text>
+        <Text style={ui.text}>קובץ JSON עם כל הקורסים מכל השנים והסמסטרים, כל המפגשים, סימוני הנוכחות וההיעדרות, ההערות שכתבתם ופרטי לוחות הלימודים.</Text>
+        {Platform.OS === 'web' ? <Action title={exporting ? 'מכין את הקובץ…' : 'הורדת כל הנתונים שלי (JSON)'} disabled={exporting || busy} onPress={() => void exportCourses()} /> : <Text style={ui.text}>להורדת הקובץ, פתחו את ההגדרות בגרסת הדפדפן.</Text>}
+      </View>
       <Disclosure title="מתקדם · איפוס נתונים">
         <Text style={ui.text}>
           מחיקת כל הקורסים, המפגשים וההערות שלך. הפעולה אינה הפיכה.
@@ -176,6 +183,12 @@ export default function SettingsScreen() {
         <Text accessibilityRole="alert" style={ui.text}>
           {message}
         </Text>
+      )}
+      {admin && (
+        <View style={{ borderTopWidth: 1, borderTopColor: "#30516F", paddingTop: 18, gap: 10 }}>
+          <Text style={ui.text}>ניהול המערכת</Text>
+          <TouchableOpacity accessibilityRole="button" onPress={() => router.push('/admin')} style={[ui.button,{borderWidth:2,borderColor:'#FACC15',backgroundColor:'#292515'}]}><Text style={[ui.buttonText,{color:'#FDE68A'}]}>מעבר לדף המנהל</Text></TouchableOpacity>
+        </View>
       )}
       <ConfirmModal
         visible={confirm}

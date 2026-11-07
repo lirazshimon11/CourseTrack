@@ -84,7 +84,8 @@ export default function CalendarWorkspace({
   const [adopt, setAdopt] = useState<InstitutionCalendar | null>(null);
 
   const [newName, setNewName] = useState("");
-  const [newSlug, setNewSlug] = useState("");
+  const [newUrl, setNewUrl] = useState("");
+  const [removeInstitution, setRemoveInstitution] = useState<Institution | null>(null);
   const [newYear, setNewYear] = useState(String(new Date().getFullYear()));
   const [notes, setNotes] = useState("");
   const [sourceUrl, setSourceUrl] = useState("");
@@ -94,18 +95,25 @@ export default function CalendarWorkspace({
     setLoading(true);
     setLoadError("");
     try {
+      // Check management access before loading any management data. Personal
+      // screens do not need or depend on an administrator role check.
+      if (management) {
+        const permission = await supabase.rpc("is_app_admin");
+        if (permission.error) throw permission.error;
+        setAdmin(permission.data === true);
+        if (permission.data !== true) return;
+      }
       const responses = await Promise.all([
         supabase.from("institutions").select("*").order("name"),
         supabase
           .from("institution_calendars")
           .select("*")
           .order("start_year", { ascending: false }),
-        supabase
+        management ? Promise.resolve({ data: [], error: null }) : supabase
           .from("academic_years")
           .select("*")
           .order("created_at", { ascending: false }),
-        supabase.from("student_profiles").select("*").maybeSingle(),
-        supabase.rpc("is_app_admin"),
+        management ? Promise.resolve({ data: null, error: null }) : supabase.from("student_profiles").select("*").maybeSingle(),
       ]);
       for (const response of responses)
         if (response.error) throw response.error;
@@ -116,46 +124,26 @@ export default function CalendarWorkspace({
       setYears(responses[2].data as unknown as AcademicYear[]);
       setProfile(prof ?? {});
       setSelected((current) =>
-        management ? current || inst[0]?.id || "" : prof?.institution_id || "",
+        management ? (inst.some(i => i.id === current) ? current : inst[0]?.id || "") : prof?.institution_id || "",
       );
-      const isAdmin = responses[4].data === true;
-      setAdmin(isAdmin);
-      if (isAdmin && management) {
-        const [src, logs, pending, health] = await Promise.all([
+      if (management) {
+        const [src, health] = await Promise.all([
           supabase.from("calendar_sources").select("*"),
-          supabase
-            .from("calendar_sync_runs")
-            .select("*")
-            .order("created_at", { ascending: false })
-            .limit(20),
-          supabase
-            .from("calendar_sync_runs")
-            .select("*")
-            .eq("status", "review")
-            .order("created_at", { ascending: false })
-            .limit(100),
           supabase.from("calendar_health").select("result").maybeSingle(),
         ]);
         if (src.error) throw src.error;
-        if (logs.error) throw logs.error;
-        if (pending.error) throw pending.error;
         if (health.error) throw health.error;
         setSources(src.data);
-        setRuns(
-          [
-            ...new Map(
-              [...(logs.data ?? []), ...(pending.data ?? [])].map((r) => [
-                r.id,
-                r,
-              ]),
-            ).values(),
-          ].sort((a, b) => b.created_at.localeCompare(a.created_at)),
-        );
+        const histories = await Promise.all(src.data.map(source => supabase.from("calendar_sync_runs").select("*").eq("source_id",source.id).order("created_at",{ascending:false}).order("id",{ascending:false}).limit(10)));
+        for (const history of histories) if (history.error) throw history.error;
+        setRuns(histories.flatMap(history => history.data ?? []));
         setScheduledHealth(health.data?.result ?? null);
       }
     } catch {
       setLoadError(
-        "לא ניתן לטעון את הלוחות. ודאו שקובץ ה־SQL החדש הופעל ושהחיבור תקין.",
+        management
+          ? "לא ניתן לטעון את מרכז הניהול. בדקו את החיבור ואת עדכוני מסד הנתונים."
+          : "לא ניתן לטעון את לוח הלימודים. בדקו את החיבור ונסו שוב.",
       );
     } finally {
       setLoading(false);
@@ -357,14 +345,14 @@ export default function CalendarWorkspace({
         <Text style={s.title}>מרכז הניהול זמין למנהלים בלבד</Text>
         <Button
           title="חזרה להגדרות"
-          onPress={() => router.canGoBack() ? router.back() : router.replace("/")}
+          onPress={() => router.replace("/settings")}
         />
       </View>
     );
   return (
     <SafeAreaView style={s.root}>
       <View style={s.header}>
-        <Button title="→ חזרה" onPress={() => router.canGoBack() ? router.back() : router.replace("/")} />
+        <Button title={management ? "→ להגדרות האישיות" : "→ חזרה"} onPress={() => management ? router.replace("/settings") : router.canGoBack() ? router.back() : router.replace("/")} />
         <Text style={s.title}>
           {management ? "מרכז ניהול" : "הלימודים שלי"}
         </Text>
@@ -375,7 +363,7 @@ export default function CalendarWorkspace({
       >
         <Text style={s.text}>
           {management
-            ? "פרסום לוח מוסדי מעדכן את כל המשתמשים המשויכים אליו."
+            ? "כל כלי הניהול במקום אחד: מוסדות, לוחות משותפים, סנכרון ובדיקות חיבור. שינויים כאן חלים על המערכת ועל משתמשי המוסד."
             : "הלוח מגיע מהמוסד שלך. אפשר להתאים את התאריכים לצרכים שלך."}
         </Text>
         {!!message && (
@@ -434,7 +422,7 @@ export default function CalendarWorkspace({
               בחרו מוסד כדי לראות את הלוחות שלו. אין שיוך אוטומטי ל־HIT.
             </Text>
           )}
-          <Text style={s.hint}>מוסד שאינו ברשימה ניתן להוספה על ידי מנהל.</Text>
+          <Text style={s.hint}>{management ? "להוספה או מחיקה של מוסד, פתחו את סעיף הוספה/מחיקה בתחתית הדף." : "מוסד שאינו ברשימה ניתן להוספה על ידי מנהל."}</Text>
         </Disclosure>
         {!!selected && (
           <Disclosure
@@ -490,7 +478,7 @@ export default function CalendarWorkspace({
               ))}
             {!calendars.some((c) => c.institution_id === selected) && (
               <Text style={s.hint}>
-                עדיין אין לוח משותף למוסד הזה. אפשר להגדיר שנה אישית ידנית.
+                {management ? "עדיין אין לוח למוסד הזה. בדקו את קישור המקור והפעילו בדיקת מקור כדי לחלץ את תאריכי הסמסטרים." : "עדיין אין לוח משותף למוסד הזה. אפשר להגדיר שנה אישית ידנית."}
               </Text>
             )}
             {!management && (
@@ -618,7 +606,7 @@ export default function CalendarWorkspace({
           <View style={s.card}>
             <Text style={s.title}>סנכרון {institution?.name}</Text>
             <Text style={s.hint}>
-              בדיקה אוטומטית מדי יום. רק לוחות שפורסמו מופצים למשתמשים; לוחות
+              בדיקה אוטומטית כל יומיים. רק לוחות שפורסמו מופצים למשתמשים; לוחות
               תקינים נשמרים ומופצים ללא אישור נוסף.
             </Text>
             <Text style={s.hint}>
@@ -703,6 +691,7 @@ export default function CalendarWorkspace({
               </Text>
             )}
             <Disclosure title="היסטוריית בדיקות">
+              <Text style={s.hint}>נשמרות רק 10 הבדיקות האחרונות של מקור זה.</Text>
               {runs
                 .filter((r) => r.source_id === source.id)
                 .map((r) => (
@@ -768,72 +757,20 @@ export default function CalendarWorkspace({
           </Disclosure>
         )}
         {admin && (
-          <Disclosure title="הוספת מוסד או לוח ידני">
-            <Text style={s.title}>ניהול מוסדות ולוחות</Text>
-            <Text style={s.hint}>
-              עריכות כאן משותפות לכל המשתמשים. תאריכים אישיים לא נדרסים.
-            </Text>
-            <TextInput
-              accessibilityLabel="שם מוסד חדש"
-              placeholder="שם מוסד חדש"
-              placeholderTextColor={Colors.textMuted}
-              style={s.input}
-              value={newName}
-              onChangeText={setNewName}
-            />
-            <TextInput
-              accessibilityLabel="מזהה מוסד באנגלית"
-              placeholder="מזהה באנגלית, למשל university-name"
-              placeholderTextColor={Colors.textMuted}
-              style={s.input}
-              value={newSlug}
-              autoCapitalize="none"
-              onChangeText={setNewSlug}
-            />
-            <Button
-              title="הוספת מוסד"
-              disabled={
-                busy || !newName.trim() || !/^[a-z0-9-]+$/.test(newSlug)
-              }
-              onPress={() =>
-                action(async () => {
-                  check(
-                    await supabase
-                      .from("institutions")
-                      .insert({ name: newName.trim(), slug: newSlug }),
-                  );
-                  setNewName("");
-                  setNewSlug("");
-                }, "המוסד נוסף. ניתן ליצור עבורו לוח ידני.")
-              }
-            />
-            {!!selected && (
-              <>
-                <Text style={s.subtitle}>לוח חדש עבור {institution?.name}</Text>
-                <Text style={s.hint}>השנה הלועזית שבה מתחילה שנת הלימודים</Text>
-                <TextInput
-                  accessibilityLabel="שנת תחילת הלוח"
-                  style={s.input}
-                  value={newYear}
-                  onChangeText={setNewYear}
-                  keyboardType="numeric"
-                />
-                <TextInput
-                  accessibilityLabel="הערות ללוח המשותף"
-                  style={s.input}
-                  multiline
-                  placeholder="הערות ללוח"
-                  placeholderTextColor={Colors.textMuted}
-                  value={notes}
-                  onChangeText={setNotes}
-                />
-                <Button
-                  title="הגדרת תאריכים ללוח משותף חדש"
-                  disabled={busy}
-                  onPress={() => setEditor({ mode: "shared", current: null })}
-                />
-              </>
-            )}
+          <Disclosure title="הוספה/מחיקה">
+            <Text style={s.title}>הוספת מוסד אקדמי</Text>
+            <Text style={s.hint}>הזינו שם וקישור לעמוד הלוח האקדמי באתר המוסד (ac.il). שנת הלימודים ותאריכי הסמסטרים יחולצו מהמקור, ללא בחירת שנה ידנית. אם מבנה העמוד אינו נתמך, תוצג שגיאה ביומן הבדיקות.</Text>
+            <TextInput accessibilityLabel="שם מוסד חדש" placeholder="שם המוסד האקדמי" placeholderTextColor={Colors.textMuted} style={s.input} value={newName} onChangeText={setNewName} />
+            <TextInput accessibilityLabel="קישור ללוח האקדמי" placeholder="https://…ac.il/academic-calendar" placeholderTextColor={Colors.textMuted} style={s.input} value={newUrl} onChangeText={setNewUrl} autoCapitalize="none" keyboardType="url" />
+            <Button title="הוספת מוסד ומקור לוח" disabled={busy || newName.trim().length<2 || !newUrl.trim()} onPress={() => action(async () => {
+              const url = new URL(newUrl.trim());
+              if(url.protocol !== 'https:' || !/^(?:[a-z0-9-]+\.)+ac\.il$/.test(url.hostname) || url.port || url.username || url.password) throw new Error('הזינו קישור HTTPS לעמוד הלוח באתר מוסד אקדמי בדומיין ac.il.');
+              const result = await supabase.rpc('add_calendar_institution',{p_name:newName.trim(),p_url:url.href});
+              check(result); setSelected(result.data); setNewName(''); setNewUrl(''); setSourceUrl('');
+            }, 'המוסד ומקור הלוח נוספו. ניתן להפעיל בדיקת מקור עכשיו או להמתין לבדיקה האוטומטית.')} />
+            <Text style={s.title}>מחיקת מוסד</Text>
+            <Text style={s.hint}>המוסד, המקור והלוחות המשותפים יימחקו. הקורסים, המפגשים, הנוכחות, ההערות והתאריכים האישיים של המשתמשים יישמרו.</Text>
+            {institution ? <Button title={`מחיקת ${institution.name}`} disabled={busy} onPress={() => setRemoveInstitution(institution)} /> : <Text style={s.hint}>בחרו מוסד בראש הדף כדי למחוק אותו.</Text>}
           </Disclosure>
         )}
       </ScrollView>
@@ -851,6 +788,10 @@ export default function CalendarWorkspace({
         onSave={saveEditor}
         onClose={() => setEditor(null)}
       />
+      <ConfirmModal visible={!!removeInstitution} title="מחיקת מוסד" message={`למחוק את ${removeInstitution?.name ?? ''}, מקורותיו והלוחות המשותפים שלו? נתוני הקורסים והלוחות האישיים של המשתמשים יישמרו. הפעולה אינה הפיכה.`} confirmLabel="מחיקת המוסד" cancelLabel="ביטול" isDestructive onCancel={() => setRemoveInstitution(null)} onConfirm={() => {
+        const id = removeInstitution!.id; setRemoveInstitution(null);
+        void action(async () => { check(await supabase.rpc('delete_calendar_institution',{p_institution_id:id})); setSourceUrl(''); },'המוסד נמחק. הנתונים האישיים של המשתמשים נשמרו.');
+      }} />
       <ConfirmModal
         visible={!!adopt}
         title="שימוש בלוח המוסד"

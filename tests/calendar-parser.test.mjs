@@ -15,6 +15,16 @@ const fixture = `לוח השנה האקדמית תשפ״ז 2026-2027
 סיום סמסטר קיץ 10.09.2027
 חופשת חג 20.04.2027 - 22.04.2027`;
 
+test('other academic domains use validated HTML or PDF dates without a user-entered year',async()=>{
+  assert.equal(assertSourceUrl('https://www.example.ac.il/calendar').hostname,'www.example.ac.il');
+  for(const url of ['https://example.ac.il.evil.test/','https://example.ac.il@127.0.0.1/','https://example.ac.il:8443/']) assert.throws(()=>assertSourceUrl(url));
+  const source={adapter:'academic-v1',page_url:'https://example.ac.il/calendar'};
+  const html=await readSource(source,async()=>({bytes:Buffer.from(fixture.split('\n').map(line=>`<p>${line}</p>`).join('')),contentType:'text/html',url:source.page_url}));
+  assert.equal(html.calendar.start_year,2026);assert.equal(html.calendar.semester_b_end,'2027-06-18');
+  const pdf=await readSource(source,async()=>({bytes:Buffer.from('%PDF-test'),contentType:'application/pdf',url:source.page_url}),async()=>fixture);
+  assert.equal(pdf.calendar.start_year,2026);
+});
+
 test('dynamic academic year, semester dates and inclusive closures',()=>{
   const {calendar,warnings}=parseCalendar(fixture);
   assert.equal(calendar.start_year,2026); assert.equal(calendar.semester_c_end,'2027-09-10');
