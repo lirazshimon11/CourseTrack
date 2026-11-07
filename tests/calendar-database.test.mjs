@@ -98,19 +98,31 @@ test('migrations and real Postgres RLS: users, institutions, personal copies, ad
     assert.equal((await asUser(ADMIN,tx=>tx.query('select * from calendar_health'))).rows.length,1);
     await assert.rejects(asUser(ADMIN,tx=>tx.query("update calendar_health set result='{}'")));
     await db.exec(await readFile(new URL('../supabase/migrations/202611070002_import_course_colors.sql',import.meta.url),'utf8'));
+    await db.exec(await readFile(new URL('../supabase/migrations/202611070003_import_course_updates.sql',import.meta.url),'utf8'));
     const imported=[{name:'Signals',import_key:'Signals',course_code:'50060-1',color:'#EC4899',credits:3.5,weekly_hours:4,
       slots_data:[{type:'lecture',day_of_week:0,start_time:'08:00',end_time:'11:00',lecturer:'Teacher',room:'218-5'},
       {type:'exercise',day_of_week:0,start_time:'11:00',end_time:'12:00'}]}];
     const runImport=(user,year,items=imported)=>asUser(user,tx=>tx.query("select import_semester($1,'א',$2,$3) as result",[year,JSON.stringify(items),JSON.stringify({track:'Electrical engineering',study_year:'ג'})]));
     await assert.rejects(runImport(B,yearA));
-    assert.deepEqual((await runImport(A,yearA)).rows[0].result,{added:1,skipped:0});
-    assert.deepEqual((await runImport(A,yearA,[{...imported[0],color:'#3B82F6'}])).rows[0].result,{added:0,skipped:1});
+    assert.deepEqual((await runImport(A,yearA)).rows[0].result,{added:1,skipped:0,updated:0});
+    assert.deepEqual((await runImport(A,yearA,[{...imported[0],color:'#3B82F6'}])).rows[0].result,{added:0,skipped:1,updated:0});
     assert.equal((await db.query("select color from courses where import_key='Signals'")).rows[0].color,'#EC4899');
     await assert.rejects(runImport(A,yearA,[{...imported[0],import_key:'bad-color',color:'invalid'}]));
     const importedId=(await db.query("select id from courses where import_key='Signals'")).rows[0].id;
     assert.ok((await db.query('select count(*)::int as n from sessions where course_id=$1',[importedId])).rows[0].n>20);
     assert.equal((await db.query("select count(*)::int as n from sessions where course_id=$1 and date='2026-12-06'",[importedId])).rows[0].n,0);
     assert.equal((await db.query('select notes from sessions where course_id=$1',[course])).rows[0].notes,'keep this note');
+    await db.query("update sessions set notes='preserve',attendance='present' where course_id=$1",[importedId]);
+    const before=(await db.query('select * from sessions where course_id=$1 order by id',[importedId])).rows;
+    await asUser(A,tx=>tx.query("update courses set name='Custom name' where id=$1",[importedId]));
+    assert.deepEqual((await runImport(A,yearA,[{...imported[0],color:'#3B82F6',edited_fields:['color']}])).rows[0].result,{added:0,skipped:0,updated:1});
+    assert.deepEqual((await db.query('select id,name,color from courses where id=$1',[importedId])).rows[0],{id:importedId,name:'Custom name',color:'#3B82F6'});
+    assert.deepEqual((await db.query('select * from sessions where course_id=$1 order by id',[importedId])).rows,before);
+    const changed={...imported[0],edited_fields:['slots_data','slot:0:start_time'],slots_data:imported[0].slots_data.map((s,i)=>i===0?{...s,start_time:'09:00'}:s)};
+    await runImport(A,yearA,[changed]);
+    const after=(await db.query('select * from sessions where course_id=$1 order by id',[importedId])).rows;
+    assert.deepEqual(after.map(s=>({...s,start_time:before.find(b=>b.id===s.id).start_time})),before);
+    assert.ok(after.filter(s=>s.type==='lecture').every(s=>s.start_time==='09:00:00'));
     const bad=[{...imported[0],name:'First',import_key:'First'},{...imported[0],name:'Invalid',import_key:'Invalid',slots_data:[{type:'lecture',day_of_week:8,start_time:'25:00',end_time:'27:00'}]}];
     await assert.rejects(runImport(A,yearA,bad));
     assert.equal((await db.query("select count(*)::int as n from courses where import_key='First'")).rows[0].n,0);

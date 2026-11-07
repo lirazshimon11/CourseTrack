@@ -348,7 +348,7 @@ export default function CalendarWorkspace({
       <View style={s.center}>
         <Text style={s.text}>{loadError}</Text>
         <Button title="ניסיון נוסף" onPress={reload} />
-        <Button title="חזרה" onPress={() => router.replace("/settings")} />
+        <Button title="חזרה" onPress={() => router.canGoBack() ? router.back() : router.replace("/")} />
       </View>
     );
   if (management && !authorized)
@@ -357,14 +357,14 @@ export default function CalendarWorkspace({
         <Text style={s.title}>מרכז הניהול זמין למנהלים בלבד</Text>
         <Button
           title="חזרה להגדרות"
-          onPress={() => router.replace("/settings")}
+          onPress={() => router.canGoBack() ? router.back() : router.replace("/")}
         />
       </View>
     );
   return (
     <SafeAreaView style={s.root}>
       <View style={s.header}>
-        <Button title="→ חזרה" onPress={() => router.replace("/settings")} />
+        <Button title="→ חזרה" onPress={() => router.canGoBack() ? router.back() : router.replace("/")} />
         <Text style={s.title}>
           {management ? "מרכז ניהול" : "הלימודים שלי"}
         </Text>

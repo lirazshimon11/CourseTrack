@@ -35,6 +35,8 @@ export default function ImportScreen() {
   const [paste, setPaste] = useState("");
   const [preview, setPreview] = useState<ImportPreview | null>(null);
 
+  const [edited, setEdited] = useState<Record<string, string[]>>({});
+  const markEdited = (key: string, field: string) => setEdited(old => ({ ...old, [key]: [...new Set([...(old[key] ?? []), field])] }));
   const [excluded, setExcluded] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -47,6 +49,7 @@ export default function ImportScreen() {
     });
 
     setExcluded([]);
+    setEdited({});
     setMessage("");
     setDone(false);
     setPaste("");
@@ -81,7 +84,11 @@ export default function ImportScreen() {
     index: number,
     si: number,
     change: Record<string, string | number>,
-  ) =>
+  ) => {
+    if (preview) {
+      markEdited(preview.courses[index].import_key, "slots_data");
+      for (const field of Object.keys(change)) markEdited(preview.courses[index].import_key, `slot:${si}:${field}`);
+    }
     setPreview((p) =>
       p
         ? {
@@ -99,6 +106,7 @@ export default function ImportScreen() {
           }
         : p,
     );
+  };
   const selected =
     preview?.courses.filter((c) => !excluded.includes(c.import_key)) ?? [];
   const save = async () => {
@@ -117,7 +125,7 @@ export default function ImportScreen() {
       const { data, error } = await supabase.rpc("import_semester", {
         p_year: academicYear.id,
         p_semester: semester,
-        p_courses: selected,
+        p_courses: selected.map(c => ({ ...c, edited_fields: edited[c.import_key] ?? [] })),
         p_profile: preview?.profile ?? {},
       });
       if (error) {
@@ -133,7 +141,7 @@ export default function ImportScreen() {
         .update({ active_academic_year_id: academicYear.id });
       setDone(true);
       setMessage(
-        `נוספו ${data.added} קורסים. ${activeResult.error ? "לא ניתן לעבור לשנה שיובאה; אפשר לפתוח אותה במסך הלימודים שלי." : ""} ${data.skipped ? `${data.skipped} קורסים כבר יובאו ונשמרו ללא שינוי.` : ""}`,
+        `נוספו ${data.added} קורסים. עודכנו ${data.updated ?? 0} קורסים. ${activeResult.error ? "לא ניתן לעבור לשנה שיובאה; אפשר לפתוח אותה במסך הלימודים שלי." : ""} ${data.skipped ? `${data.skipped} קורסים כבר יובאו ונשמרו ללא שינוי.` : ""}`,
       );
       setPreview(null);
     } catch {
@@ -318,7 +326,8 @@ export default function ImportScreen() {
                     },
                   ]}
                   value={c.name}
-                  onChangeText={(name) =>
+                  onChangeText={(name) => {
+                    markEdited(c.import_key, "name");
                     setPreview((p) =>
                       p
                         ? {
@@ -329,7 +338,7 @@ export default function ImportScreen() {
                           }
                         : p,
                     )
-                  }
+                  }}
                 />
               </View>
               {excluded.includes(c.import_key) ? (
@@ -341,7 +350,8 @@ export default function ImportScreen() {
                   <CourseColorPicker
                     color={c.color ?? courseColor(index)}
                     disabled={busy}
-                    onChange={(color) =>
+                    onChange={(color) => {
+                      markEdited(c.import_key, "color");
                       setPreview((p) =>
                         p
                           ? {
@@ -352,7 +362,7 @@ export default function ImportScreen() {
                             }
                           : p,
                       )
-                    }
+                    }}
                   />
                   <Text style={ui.text}>
                     {c.course_code} · {c.credits} נ״ז · {c.weekly_hours} שעות
@@ -387,32 +397,7 @@ export default function ImportScreen() {
                                 editable={!busy}
                                 style={[ui.input, { flex: 1 }]}
                                 value={slot[field]}
-                                onChangeText={(value) =>
-                                  setPreview((p) =>
-                                    p
-                                      ? {
-                                          ...p,
-                                          courses: p.courses.map((item, i) =>
-                                            i === index
-                                              ? {
-                                                  ...item,
-                                                  slots_data:
-                                                    item.slots_data.map(
-                                                      (s, j) =>
-                                                        j === si
-                                                          ? {
-                                                              ...s,
-                                                              [field]: value,
-                                                            }
-                                                          : s,
-                                                    ),
-                                                }
-                                              : item,
-                                          ),
-                                        }
-                                      : p,
-                                  )
-                                }
+                                onChangeText={(value) => editSlot(index, si, { [field]: value })}
                               />
                             ),
                           )}

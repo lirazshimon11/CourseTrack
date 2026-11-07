@@ -59,7 +59,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   if (session) return <View style={s.center}><Text style={s.title}>עוד צעד קטן לפני שמתחילים</Text><Text style={s.description}>החשבון מחובר. מנהל האתר צריך להשלים את הגדרת החשבונות הנפרדים לפני שאפשר לפתוח את הקורסים.</Text><TouchableOpacity style={s.button} onPress={() => setSession({ ...session })}><Text style={s.buttonText}>בדיקה חוזרת</Text></TouchableOpacity><TouchableOpacity onPress={async () => { const { error } = await supabase.auth.signOut(); if (error) setMessage('ההתנתקות נכשלה. נסו שוב.'); }}><Text style={s.link}>התנתקות</Text></TouchableOpacity><Text style={s.description}>{message}</Text></View>;
 
   return <ScrollView contentContainerStyle={s.page} keyboardShouldPersistTaps="handled">
-    <View style={s.brand}><Text style={s.logo}>🎓</Text><Text style={s.wordmark}>CourseTrack</Text><Text style={s.badge}>כל הלימודים, במקום אחד</Text></View>
+    <View style={s.brand}><View style={s.brandHeading}><Text style={s.logo}>🎓</Text><Text style={s.wordmark}>CourseTrack</Text></View><Text style={s.badge}>כל הלימודים, במקום אחד</Text></View>
     <Text style={s.title}>{signup ? 'מתחילים ללמוד בראש שקט' : 'טוב שחזרת ללמוד'}</Text>
     <Text style={s.description}>הקורסים, השיעורים וההתקדמות שלך.{ '\n' }סביבת לימודים אישית, בקצב שלך.</Text>
     <View style={s.card}>
@@ -77,21 +77,23 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 
 const s = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', padding: 28, gap: 20 },
-  page: { flexGrow: 1, justifyContent: 'center', padding: 28, paddingVertical: 44, gap: 16 },
-  brand: { alignItems: 'center', gap: 7, marginBottom: 18 }, logo: { fontSize: 44 },
-  wordmark: { color: Colors.text, fontFamily: 'Heebo_700Bold', fontSize: 27 },
-  badge: { color: '#C4B5FD', backgroundColor: Colors.glassLight, paddingHorizontal: 14, paddingVertical: 6, borderRadius: 24, fontFamily: 'Heebo_500Medium' },
-  title: { color: Colors.text, fontSize: 26, fontFamily: 'Heebo_700Bold', textAlign: 'center' },
-  description: { color: Colors.textSecondary, fontFamily: 'Heebo_400Regular', fontSize: 14, lineHeight: 24, textAlign: 'center' },
-  card: { padding: 22, backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.cardBorder, borderRadius: 24, gap: 10, marginTop: 10 },
-  tabs: { flexDirection: 'row', backgroundColor: Colors.background, padding: 4, borderRadius: 12, marginBottom: 12 },
-  tab: { flex: 1, paddingVertical: 10, borderRadius: 9, alignItems: 'center' }, activeTab: { backgroundColor: Colors.primary },
-  label: { color: Colors.textSecondary, fontFamily: 'Heebo_500Medium', textAlign: 'right', marginTop: 6 },
-  input: { backgroundColor: Colors.background, color: Colors.text, borderRadius: 12, borderWidth: 1, borderColor: '#38384F', padding: 14, fontFamily: 'Heebo_400Regular', fontSize: 15, textAlign: 'right' },
+  page: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 20, paddingVertical: 16, gap: 8 },
+  brand: { alignItems: 'center', gap: 4 },
+  brandHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  logo: { fontSize: 28, lineHeight: 36 },
+  wordmark: { color: Colors.text, fontFamily: 'Heebo_700Bold', fontSize: 24, lineHeight: 36 },
+  badge: { color: '#C4B5FD', backgroundColor: Colors.glassLight, paddingHorizontal: 12, paddingVertical: 3, borderRadius: 24, fontFamily: 'Heebo_500Medium', fontSize: 12, lineHeight: 18 },
+  title: { color: Colors.text, fontSize: 22, lineHeight: 30, fontFamily: 'Heebo_700Bold', textAlign: 'center' },
+  description: { color: Colors.textSecondary, fontFamily: 'Heebo_400Regular', fontSize: 14, lineHeight: 20, textAlign: 'center' },
+  card: { padding: 14, backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.cardBorder, borderRadius: 20, gap: 6 },
+  tabs: { flexDirection: 'row', backgroundColor: Colors.background, padding: 3, borderRadius: 12, marginBottom: 2 },
+  tab: { flex: 1, minHeight: 44, justifyContent: 'center', borderRadius: 9, alignItems: 'center' }, activeTab: { backgroundColor: Colors.primary },
+  label: { color: Colors.textSecondary, fontFamily: 'Heebo_500Medium', fontSize: 13, lineHeight: 18, textAlign: 'right', marginTop: 2 },
+  input: { backgroundColor: Colors.background, color: Colors.text, borderRadius: 12, borderWidth: 1, borderColor: '#38384F', minHeight: 44, paddingHorizontal: 12, paddingVertical: 8, fontFamily: 'Heebo_400Regular', fontSize: 16, textAlign: 'right' },
   ltr: { writingDirection: 'ltr', textAlign: 'left' },
-  button: { backgroundColor: Colors.primary, borderRadius: 12, minHeight: 50, justifyContent: 'center', alignItems: 'center', marginTop: 12 },
+  button: { backgroundColor: Colors.primary, borderRadius: 12, minHeight: 44, justifyContent: 'center', alignItems: 'center', marginTop: 6 },
   buttonText: { color: Colors.text, fontFamily: 'Heebo_600SemiBold', fontSize: 14 },
   message: { color: '#FCD34D', textAlign: 'right', fontFamily: 'Heebo_400Regular', lineHeight: 22 },
-  link: { color: '#C4B5FD', textAlign: 'center' }, features: { marginTop: 12 },
-  footnote: { color: Colors.textMuted, fontFamily: 'Heebo_400Regular', fontSize: 12, textAlign: 'center', lineHeight: 20 },
+  link: { color: '#C4B5FD', textAlign: 'center' }, features: { marginTop: 2 },
+  footnote: { color: Colors.textMuted, fontFamily: 'Heebo_400Regular', fontSize: 12, textAlign: 'center', lineHeight: 18 },
 });
