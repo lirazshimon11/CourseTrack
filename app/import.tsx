@@ -122,6 +122,13 @@ export default function ImportScreen() {
     setBusy(true);
     setMessage("");
     try {
+      const capability = await supabase.rpc("import_semester_capabilities");
+      if (capability.error || capability.data !== 2) {
+        setMessage(capability.error && capability.error.code !== "PGRST202"
+          ? "לא ניתן לבדוק את תמיכת השרת בייבוא. לא נשמרו שינויים; נסו שוב."
+          : "נדרש עדכון מסד הנתונים לפני הייבוא: על המנהל להריץ את 202611070004_import_contract.sql ב־Supabase. הבחירות שלכם נשמרו בתצוגה זו.");
+        return;
+      }
       const { data, error } = await supabase.rpc("import_semester", {
         p_year: academicYear.id,
         p_semester: semester,
@@ -136,12 +143,9 @@ export default function ImportScreen() {
         );
         return;
       }
-      const activeResult = await supabase
-        .from("student_profiles")
-        .update({ active_academic_year_id: academicYear.id });
       setDone(true);
       setMessage(
-        `נוספו ${data.added} קורסים. עודכנו ${data.updated ?? 0} קורסים. ${activeResult.error ? "לא ניתן לעבור לשנה שיובאה; אפשר לפתוח אותה במסך הלימודים שלי." : ""} ${data.skipped ? `${data.skipped} קורסים כבר יובאו ונשמרו ללא שינוי.` : ""}`,
+        `נוספו ${data.added} קורסים. עודכנו ${data.updated ?? 0} קורסים. ${data.skipped ? `${data.skipped} קורסים כבר יובאו ונשמרו ללא שינוי.` : ""}`,
       );
       setPreview(null);
     } catch {
@@ -495,7 +499,7 @@ export default function ImportScreen() {
             <Text style={ui.text}>שדה ריק לא יחליף מידע קיים.</Text>
           </Disclosure>
           <Text style={ui.text}>
-            קורס שכבר יובא לא יוחלף. הנוכחות וההערות הקיימות נשמרות.
+            בקורס שכבר יובא יעודכנו רק פרטים ששיניתם כאן, כולל הצבע. הנוכחות וההערות הקיימות נשמרות.
           </Text>
           {!hasDates && semester && (
             <Text style={[ui.text, { color: "#FCD34D" }]}>

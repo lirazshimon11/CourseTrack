@@ -99,12 +99,15 @@ test('migrations and real Postgres RLS: users, institutions, personal copies, ad
     await assert.rejects(asUser(ADMIN,tx=>tx.query("update calendar_health set result='{}'")));
     await db.exec(await readFile(new URL('../supabase/migrations/202611070002_import_course_colors.sql',import.meta.url),'utf8'));
     await db.exec(await readFile(new URL('../supabase/migrations/202611070003_import_course_updates.sql',import.meta.url),'utf8'));
+    await db.exec(await readFile(new URL('../supabase/migrations/202611070004_import_contract.sql',import.meta.url),'utf8'));
+    assert.equal((await asUser(A,tx=>tx.query('select import_semester_capabilities() as version'))).rows[0].version,2);
     const imported=[{name:'Signals',import_key:'Signals',course_code:'50060-1',color:'#EC4899',credits:3.5,weekly_hours:4,
       slots_data:[{type:'lecture',day_of_week:0,start_time:'08:00',end_time:'11:00',lecturer:'Teacher',room:'218-5'},
       {type:'exercise',day_of_week:0,start_time:'11:00',end_time:'12:00'}]}];
     const runImport=(user,year,items=imported)=>asUser(user,tx=>tx.query("select import_semester($1,'א',$2,$3) as result",[year,JSON.stringify(items),JSON.stringify({track:'Electrical engineering',study_year:'ג'})]));
     await assert.rejects(runImport(B,yearA));
     assert.deepEqual((await runImport(A,yearA)).rows[0].result,{added:1,skipped:0,updated:0});
+    assert.equal((await asUser(A,tx=>tx.query('select active_academic_year_id from student_profiles where user_id=auth.uid()'))).rows[0].active_academic_year_id,yearA);
     assert.deepEqual((await runImport(A,yearA,[{...imported[0],color:'#3B82F6'}])).rows[0].result,{added:0,skipped:1,updated:0});
     assert.equal((await db.query("select color from courses where import_key='Signals'")).rows[0].color,'#EC4899');
     await assert.rejects(runImport(A,yearA,[{...imported[0],import_key:'bad-color',color:'invalid'}]));
