@@ -1,5 +1,5 @@
 {
-  "crons": [{ "path": "/api/calendar-sync", "schedule": "0 5 * * 0" }],
+  "crons": [{ "path": "/api/calendar-sync", "schedule": "0 5 * * *" }],
   "functions": { "api/calendar-sync.mjs": { "maxDuration": 60, "includeFiles": "server/certificates/*.crt" } },
   "rewrites": [
     {

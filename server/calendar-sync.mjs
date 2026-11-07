@@ -30,12 +30,20 @@ export async function syncSource(db, source, reader = readSource) {
     const parsed = await reader(source);
     const candidate = { ...parsed.calendar, institution_id: source.institution_id, source_url: parsed.source_url, source_hash: parsed.source_hash, origin: 'sync' };
     const existing = check(await db.from('institution_calendars').select('*').eq('institution_id', source.institution_id).eq('start_year', candidate.start_year).maybeSingle());
-    const recent = check(await db.from('calendar_sync_runs').select('status,candidate').eq('source_id',source.id).in('status',['review','approved','dismissed']).order('created_at',{ascending:false}).limit(50));
-    const alreadySeen = existing?.source_hash === candidate.source_hash || recent.some(r => r.candidate?.source_hash === candidate.source_hash);
-    const baseline = check(await db.from('calendar_sync_runs').select('id').eq('source_id',source.id).eq('status','approved').limit(1));
-    const status = alreadySeen ? 'unchanged' : publicationDecision(existing, source, parsed.warnings, baseline.length > 0);
-    if (status === 'published') check(await db.from('institution_calendars').insert(candidate));
-    const message = status === 'unchanged' ? 'לא נמצא שינוי חדש' : parsed.warnings.length ? parsed.warnings.join('\n').slice(0,6000) : status === 'review' ? 'לוח חדש או שינוי בלוח קיים ממתין לבדיקה' : 'שנה חדשה נוספה אוטומטית';
+    const decision=publicationDecision(existing,source,parsed.warnings);
+    const alreadySeen = existing?.source_hash === candidate.source_hash;
+    let status = alreadySeen ? 'unchanged' : decision;
+    if (status === 'published') {
+      if(existing){
+        // Compare-and-swap prevents overwriting an administrator edit made during fetch.
+        const updated=check(await db.from('institution_calendars').update(candidate).eq('id',existing.id).eq('revision',existing.revision).eq('origin','sync').select('id'));
+        if(!updated.length)throw new Error('הלוח נערך במקביל. השינויים נשמרו; נסו לסנכרן שוב.');
+      }else check(await db.from('institution_calendars').insert(candidate));
+    }
+    if(status==='published'||(alreadySeen&&existing?.origin==='sync')){
+      check(await db.from('calendar_sync_runs').update({status:'dismissed',message:'הצעה ישנה שהוחלפה בשליפה אוטומטית עדכנית.'}).eq('source_id',source.id).eq('status','review').eq('candidate->>start_year',String(candidate.start_year)));
+    }
+    const message = existing?.origin==='manual' ? 'הלוח נערך ידנית בידי מנהל ולכן נשמר ללא החלפה.' : status==='unchanged' ? 'לא נמצא שינוי חדש' : 'הלוח נשמר והופץ אוטומטית.' + (parsed.warnings.length?'\nהערות המקור נשמרו בלוח:\n'+parsed.warnings.join('\n').slice(0,6000):'');
     check(await db.from('calendar_sync_runs').insert({ source_id:source.id, status, message, candidate: status === 'unchanged' ? null : candidate }));
     success = true;
     return { status, message };

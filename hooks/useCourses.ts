@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { Course, Semester, AcademicYear, SlotData } from '../types';
 import { generateSessions } from '../lib/dateUtils';
@@ -21,9 +22,7 @@ export function useCourses(academicYearId?: string | null) {
     setLoading(false);
   };
 
-  useEffect(() => {
-    fetchCourses();
-  }, [academicYearId]);
+  useFocusEffect(useCallback(() => { void fetchCourses(); }, [academicYearId]));
 
   const createCourse = async (
     name: string,

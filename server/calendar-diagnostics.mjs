@@ -1,7 +1,9 @@
-// Called only after the caller has passed Supabase Auth and the administrator check.
+// Called after administrator authentication, or after verification of the cron secret.
 // Never returns credentials, identities, database rows, or upstream error messages.
-export async function calendarDiagnostics({ db, cronSecret }) {
-  const checks = [
+export async function calendarDiagnostics({ db, cronSecret, scheduled=false }) {
+  const checks = scheduled ? [
+    {id:'schedule',status:'pass',label:'הפעלה אוטומטית',detail:'השרת קיבל בקשה מתוזמנת עם סוד תזמון תקין.'},
+  ] : [
     { id:'auth',status:'pass',label:'כתובת Supabase והמפתח הציבורי',detail:'השרת הצליח לאמת את החשבון המחובר מול Supabase.' },
     { id:'admin',status:'pass',label:'הרשאת מנהל',detail:'החשבון המחובר אומת כמנהל בפרויקט.' },
   ];
@@ -26,5 +28,5 @@ export async function calendarDiagnostics({ db, cronSecret }) {
     ? {id:'cron_config',status:'pass',label:'הגדרת CRON_SECRET',detail:'סוד תזמון מוגדר ובאורך מתאים. זו אינה בדיקה של הפעלה מתוזמנת בפועל.'}
     : {id:'cron_config',status:'fail',label:'הגדרת CRON_SECRET',detail:'סוד התזמון חסר או קצר מ־16 תווים.'});
   return { ok:checks.every(c=>c.status==='pass'),checks,checked_at:new Date().toISOString(),
-    scope:'בדיקת קריאה והרשאות בלבד. לא נשלחה בקשה ל־HIT, לא שונו נתונים ולא הופעל התזמון.' };
+    scope:scheduled?'בדיקת שרת אוטומטית. התוצאה נשמרת למנהל; בדיקת מקור הלוח מופיעה בנפרד.':'בדיקת קריאה והרשאות בלבד. לא נשלחה בקשה ל־HIT, לא שונו נתונים ולא הופעל התזמון.' };
 }

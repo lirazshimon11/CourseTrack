@@ -20,6 +20,9 @@ export interface AcademicYear {
 }
 
 export interface SlotData {
+  lecturer?: string;
+  room?: string;
+  code?: string;
   type: SessionType;
   day_of_week: number;
   start_time: string;
@@ -27,6 +30,9 @@ export interface SlotData {
 }
 
 export interface Course {
+  course_code?: string | null;
+  credits?: number | null;
+  weekly_hours?: number | null;
   id: string;
   name: string;
   semester: Semester;

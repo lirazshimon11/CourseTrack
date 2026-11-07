@@ -13,6 +13,7 @@ import { SessionDetailSheet } from '../../components/SessionDetailSheet';
 import { WeekSection } from '../../components/WeekSection';
 import { Session, AttendanceStatus, SessionType, Course } from '../../types';
 import { groupSessionsByWeek } from '../../lib/dateUtils';
+import { Disclosure, ui } from '../../components/SettingsUI';
 import { CreateCourseModal } from '../../components/CreateCourseModal';
 
 type TabType = 'lecture' | 'exercise';
@@ -33,30 +34,8 @@ const CourseScreen = () => {
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [hasAttemptedRegen, setHasAttemptedRegen] = useState(false);
 
-  // Auto-regenerate sessions if list is empty
-  React.useEffect(() => {
-    const triggerRegen = async () => {
-      if (!loadingSessions && sessions.length === 0 && !hasAttemptedRegen && courseId) {
-        setHasAttemptedRegen(true);
-        setIsRegenerating(true);
-        console.log('Detected empty sessions, triggering auto-regen...');
-        try {
-          const res = await recreateSessions(courseId);
-          if (res.success) {
-            await refreshSessions();
-          } else if (res.error) {
-            Alert.alert('שיומת לב', (res.error as any).message || String(res.error));
-          }
-        } catch (err: any) {
-          console.error('Auto-regen error:', err);
-          Alert.alert('שגיאה', 'משהו השתבש ביצירת המפגשים');
-        } finally {
-          setIsRegenerating(false);
-        }
-      }
-    };
-    triggerRegen();
-  }, [loadingSessions, sessions.length, courseId, hasAttemptedRegen]);
+  // Empty tabs are valid (e.g. a lab without tutorials). Never rebuild all
+  // sessions automatically when viewing one of them.
 
   const grouped = useMemo(() => {
     let filteredSessions = sessions;
@@ -161,6 +140,7 @@ const CourseScreen = () => {
         </TouchableOpacity>
       </View>
 
+      {course?.course_code&&<View style={{marginHorizontal:20,marginBottom:12}}><Disclosure title="פרטי הקורס והמערכת"><Text style={ui.text}>{course.course_code} · {course.credits??'—'} נ״ז · {course.weekly_hours??'—'} שעות</Text>{course.slots_data.map((slot,i)=><View key={i}><Text style={ui.text}>{slot.type==='exercise'?'תרגול':'הרצאה / מעבדה'} · יום {'אבגדהוש'[slot.day_of_week]} · {slot.start_time}–{slot.end_time}</Text><Text style={ui.text}>{slot.lecturer||'מרצה לא הוגדר'} · {slot.room||'חדר לא הוגדר'}</Text></View>)}</Disclosure></View>}
       {/* Tabs: הרצאות / תרגולים */}
       <View style={styles.tabRow}>
         {TABS.map(tab => (

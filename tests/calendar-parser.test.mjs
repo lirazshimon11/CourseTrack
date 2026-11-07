@@ -29,7 +29,7 @@ test('reject impossible dates, contradictory years and missing or ambiguous seme
   assert.throws(()=>parseCalendar(fixture+"\nסיום סמסטר א' 23.01.2027"));
   assert.throws(()=>parseCalendar(fixture.replace('07.03.2027','01.01.2027')));
 });
-test('partial-day and schedule substitution notices require human review',()=>{
+test('partial-day and schedule substitution notices are preserved as warnings',()=>{
   const parsed=parseCalendar(fixture+'\nלא יתקיימו לימודים החל מהשעה 16:00 01.05.2027\nהוראה של יום ראשון 02.05.2027');
   assert.equal(parsed.warnings.length,2); assert.ok(!parsed.calendar.excluded_dates.includes('2027-05-01'));
 });
@@ -39,11 +39,14 @@ test('extract table rows and the current print link, not a hardcoded yearly PDF'
   assert.equal(parseCalendar(extracted.text).calendar.start_year,2026);
   assert.deepEqual(extracted.pdfLinks,['https://www.hit.ac.il/files/year.pdf']);
 });
-test('no automatic publication before baseline or with warnings; never auto-overwrite existing year',()=>{
+test('publish without approval; invalid data fails and manual edits remain unchanged',()=>{
   const source={auto_publish_new_years:true};
-  assert.equal(publicationDecision(null,source,[],false),'review');
-  assert.equal(publicationDecision(null,source,['ambiguous'],true),'review');
-  assert.equal(publicationDecision({},source,[],true),'review');
+  assert.equal(publicationDecision({origin:'sync'},source,[],true),'published');
+  assert.equal(publicationDecision(null,source,['חריג דורש בדיקה: הפסקה בשעה 18:00'],false),'published');
+  assert.equal(publicationDecision(null,{auto_publish_new_years:false},[],false),'published');
+  assert.equal(publicationDecision(null,source,[],false),'published');
+  assert.throws(()=>publicationDecision(null,source,['ambiguous'],true));
+  assert.equal(publicationDecision({origin:'manual'},source,[],true),'unchanged');
   assert.equal(publicationDecision(null,source,[],true),'published');
 });
 test('SSRF protection including redirects and size limits',async()=>{

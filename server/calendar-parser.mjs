@@ -117,7 +117,9 @@ export function parseCalendar(text) {
 
 export function sourceHash(text) { return createHash('sha256').update(normalize(text)).digest('hex'); }
 
-export function publicationDecision(existing, source, warnings, hasApprovedBaseline) {
-  if (existing) return 'review'; // Never overwrite a shared or manually corrected year unattended.
-  return source.auto_publish_new_years && hasApprovedBaseline && !warnings.length ? 'published' : 'review';
+export function publicationDecision(existing, source, warnings) {
+  if (existing?.origin === 'manual') return 'unchanged';
+  if(warnings.some(w=>!/^(חריג דורש בדיקה:|שינוי מערכת דורש בדיקה:)/.test(w)))
+    throw new Error('החילוץ לא הושלם בצורה תקינה. הלוח הקודם נשמר.');
+  return 'published';
 }

@@ -84,11 +84,12 @@ const HomeScreen = () => {
 
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
+      <TouchableOpacity accessibilityRole="button" onPress={()=>router.push('/import')} style={{marginHorizontal:20,marginTop:12,padding:12,backgroundColor:'#281D46',borderRadius:12}}><Text style={{color:'#DDD6FE',fontFamily:'Heebo_600SemiBold',textAlign:'center'}}>＋ ייבוא מערכת שעות מ־PDF</Text></TouchableOpacity>
       {/* Top bar */}
       <View style={styles.topBar}>
         <TouchableOpacity
           style={styles.yearBtn}
-          onPress={() => setShowYearModal(true)}
+          onPress={() => router.push('/calendars')}
         >
           <Text style={styles.yearBtnIcon}>🎓</Text>
           <Text style={styles.yearBtnText}>{academicYear ? `שנה ${yearLabel}` : 'הגדרת סמסטר'}</Text>

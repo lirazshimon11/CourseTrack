@@ -32,6 +32,14 @@ return async function handler(req, res) {
     const db = SUPABASE_SERVICE_ROLE_KEY ? clientFactory(SUPABASE_URL,SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false,autoRefreshToken:false}}) : null;
     if (diagnostics) return res.status(200).json({ diagnostics:await calendarDiagnostics({db,cronSecret:CRON_SECRET}) });
     if (!db || !CRON_SECRET) return res.status(503).json({ error:'חסרות הגדרות שרת לסנכרון. הפעילו בדיקת חיבור והרשאות.' });
+    const warnings=[];
+    if (cron) {
+      const health=await calendarDiagnostics({db,cronSecret:CRON_SECRET,scheduled:true});
+      const saved=await db.from('calendar_health').upsert({id:true,result:health});
+      if(!health.ok) return res.status(503).json({error:'בדיקת השרת האוטומטית נכשלה. יש לבדוק את החיבור ואת עדכון מסד הנתונים.'});
+      // A missing diagnostics table must not prevent an otherwise valid calendar fetch.
+      if(saved.error)warnings.push('לא ניתן לשמור את בדיקת החיבור בטבלת calendar_health. בדקו את עדכון מסד הנתונים.');
+    }
     let query = db.from('calendar_sources').select('*').eq('enabled',true).order('last_checked_at',{ascending:true,nullsFirst:true}).limit(1);
     // One bounded HIT source per run. Other institutions currently use manual calendars.
     if (!cron) {
@@ -48,7 +56,7 @@ return async function handler(req, res) {
       }
       results.push(await runSync(db,source));
     }
-    return res.status(results.some(r=>r.status==='failed') ? 502 : 200).json({ results });
+    return res.status(results.some(r=>r.status==='failed') ? 502 : 200).json({ results, ...(warnings.length?{warnings}:{}) });
   } catch { return res.status(500).json({ error:'הסנכרון נכשל. בדקו את הגדרות השרת ואת טבלת הריצות.' }); }
 };
 }

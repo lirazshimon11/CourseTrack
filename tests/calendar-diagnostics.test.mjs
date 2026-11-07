@@ -47,3 +47,31 @@ test('wrong server credentials, missing secrets and schema problems produce spec
   assert.equal(schema.body.diagnostics.checks.find(c=>c.id==='schema').status,'fail');
   assert.ok(!JSON.stringify(schema.body).includes('raw database details'));
 });
+
+test('scheduled runs persist only safe server health and do not claim an interactive admin login',async()=>{
+  let saved;
+  const db={from(table){
+    const chain={select:()=>chain,limit:()=>chain,eq:()=>chain,order:()=>chain,
+      then:fn=>Promise.resolve({data:[],error:null}).then(fn),
+      upsert:async value=>{assert.equal(table,'calendar_health');saved=value;return {error:null};}};
+    return chain;
+  }};
+  const handler=createCalendarHandler({clientFactory:()=>db,getEnv:()=>settings});
+  const res={code:200,setHeader(){},status(n){this.code=n;return this;},json(v){this.body=v;return this;}};
+  await handler({method:'GET',headers:{authorization:`Bearer ${settings.CRON_SECRET}`}},res);
+  assert.equal(res.code,200);assert.equal(saved.result.ok,true);
+  assert.equal(saved.result.checks[0].id,'schedule');
+  assert.ok(!saved.result.checks.some(c=>c.id==='auth'||c.id==='admin'));
+  assert.ok(!JSON.stringify(saved).includes(settings.SUPABASE_SERVICE_ROLE_KEY));
+});
+
+test('health-log write failure does not block a valid source sync',async()=>{
+ let calls=0;
+ const db={from(table){const q={select:()=>q,eq:()=>q,order:()=>q,limit:()=>q,
+  then:fn=>Promise.resolve({data:table==='calendar_sources'?[{id:'source',last_checked_at:null}]:[],error:null}).then(fn),
+  upsert:async()=>({error:{code:'42P01'}})};return q;}};
+ const handler=createCalendarHandler({clientFactory:()=>db,getEnv:()=>settings,runSync:async()=>{calls++;return {status:'published'};}});
+ const res={code:200,setHeader(){},status(n){this.code=n;return this;},json(v){this.body=v;return this;}};
+ await handler({method:'GET',headers:{authorization:`Bearer ${settings.CRON_SECRET}`}},res);
+ assert.equal(calls,1);assert.equal(res.code,200);assert.equal(res.body.warnings.length,1);
+});
