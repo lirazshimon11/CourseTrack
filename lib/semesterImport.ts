@@ -1,5 +1,6 @@
 import { SlotData, Semester } from "../types";
 export interface ImportCourse {
+  color?: string;
   name: string;
   import_key: string;
   course_code: string;

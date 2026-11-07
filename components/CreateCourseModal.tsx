@@ -1,3 +1,4 @@
+import {COURSE_COLORS,courseColor} from '../constants/courseColors';
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, Modal, TouchableOpacity,
@@ -13,6 +14,7 @@ type SlotWithoutMeta = {
 };
 
 interface Props {
+  usedColors?: string[];
   visible: boolean;
   academicYear: AcademicYear | null;
   courseToEdit?: Course | null;
@@ -29,24 +31,9 @@ interface Props {
 
 const DAYS = ['א', 'ב', 'ג', 'ד', 'ה', 'ו'];
 
-const COURSE_COLORS = [
-  '#3B82F6', // Blue
-  '#8B5CF6', // Violet
-  '#10B981', // Emerald
-  '#F59E0B', // Amber
-  '#EF4444', // Red
-  '#EC4899', // Pink
-  '#06B6D4', // Cyan
-  '#64748B', // Slate
-  '#84CC16', // Lime
-  '#14B8A6', // Teal
-  '#6366F1', // Indigo
-  '#A855F7', // Purple
-  '#78350F', // Brown
-  '#334155', // Dark Slate
-];
 
-export const CreateCourseModal = ({ visible, academicYear, courseToEdit, readOnly = false, onClose, onSave }: Props) => {
+
+export const CreateCourseModal = ({ visible, academicYear, courseToEdit, readOnly = false, onClose, onSave, usedColors=[] }: Props) => {
   const [name, setName] = useState('');
   const [semester, setSemester] = useState<Semester>('א');
   const [color, setColor] = useState(COURSE_COLORS[0]);
@@ -85,7 +72,7 @@ export const CreateCourseModal = ({ visible, academicYear, courseToEdit, readOnl
       } else {
         setName('');
         setSemester(academicYear?.semester_a_start ? 'א' : academicYear?.semester_b_start ? 'ב' : 'קיץ');
-        setColor(COURSE_COLORS[0]);
+        setColor(Array.from({length:usedColors.length+COURSE_COLORS.length},(_,i)=>courseColor(i)).find(c=>!usedColors.map(v=>v.toUpperCase()).includes(c.toUpperCase()))??COURSE_COLORS[0]);
         setLectureSlots([{ day_of_week: 0, start_time: '08:00', end_time: '10:00', type: 'lecture' }]);
         setExerciseSlots([]);
       }

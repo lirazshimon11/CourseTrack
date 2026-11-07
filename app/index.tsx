@@ -157,6 +157,7 @@ const HomeScreen = () => {
 
       {/* Modals */}
       <CreateCourseModal
+        usedColors={courses.map(c=>c.color)}
         visible={showCreate}
         academicYear={academicYear}
         courseToEdit={courseToEdit}

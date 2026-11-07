@@ -1,3 +1,6 @@
+import { CourseToggle } from "../components/CourseToggle";
+import { courseColor } from "../constants/courseColors";
+import { CourseColorPicker } from "../components/CourseColorPicker";
 import { CalendarRecovery } from "../components/CalendarRecovery";
 import React, { useState } from "react";
 import {
@@ -5,7 +8,6 @@ import {
   Text,
   TextInput,
   View,
-  Switch,
   TouchableOpacity,
 } from "react-native";
 import { useRouter } from "expo-router";
@@ -39,7 +41,10 @@ export default function ImportScreen() {
   const [done, setDone] = useState(false);
   const prepare = (text: string) => {
     const result = parseSemesterText(text);
-    setPreview(result);
+    setPreview({
+      ...result,
+      courses: result.courses.map((c, i) => ({ ...c, color: courseColor(i) })),
+    });
 
     setExcluded([]);
     setMessage("");
@@ -97,7 +102,15 @@ export default function ImportScreen() {
   const selected =
     preview?.courses.filter((c) => !excluded.includes(c.import_key)) ?? [];
   const save = async () => {
-    if (!academicYear || !semester || !selected.length || busy || loading || context.error) return;
+    if (
+      !academicYear ||
+      !semester ||
+      !selected.length ||
+      busy ||
+      loading ||
+      context.error
+    )
+      return;
     setBusy(true);
     setMessage("");
     try {
@@ -246,8 +259,8 @@ export default function ImportScreen() {
               בשבוע · {selected.reduce((n, c) => n + c.credits, 0)} נקודות זכות
             </Text>
             <Text style={ui.text}>
-              תרגולים משויכים לפי שם הקורס. בדקו את השיוך והשעות. ניתן להסיר
-              קורס מהייבוא באמצעות המתג.
+              תרגולים משויכים לפי שם הקורס. בדקו את השיוך והשעות. ניתן לבחור צבע
+              ולהסיר קורס מהייבוא.
             </Text>
           </View>
           {preview.warnings.length > 0 && (
@@ -263,15 +276,30 @@ export default function ImportScreen() {
             </View>
           )}
           {preview.courses.map((c, index) => (
-            <View key={c.import_key} style={ui.card}>
+            <View
+              key={c.import_key}
+              style={[
+                ui.card,
+                {
+                  borderRightWidth: 4,
+                  borderRightColor: excluded.includes(c.import_key)
+                    ? "#434353"
+                    : (c.color ?? courseColor(index)),
+                  backgroundColor: excluded.includes(c.import_key)
+                    ? "#151521"
+                    : "#1E1E35",
+                },
+              ]}
+            >
               <View style={ui.row}>
-                <Switch
-                  accessibilityLabel={`ייבוא ${c.name}`}
+                <CourseToggle
+                  enabled={!excluded.includes(c.import_key)}
+                  color={c.color ?? courseColor(index)}
+                  label={`ייבוא הקורס ${c.name}`}
                   disabled={busy}
-                  value={!excluded.includes(c.import_key)}
-                  onValueChange={(v) =>
+                  onToggle={() =>
                     setExcluded((old) =>
-                      v
+                      old.includes(c.import_key)
                         ? old.filter((k) => k !== c.import_key)
                         : [...old, c.import_key],
                     )
@@ -279,8 +307,16 @@ export default function ImportScreen() {
                 />
                 <TextInput
                   accessibilityLabel="שם הקורס"
-                  editable={!busy}
-                  style={[ui.input, { flex: 1 }]}
+                  editable={!busy && !excluded.includes(c.import_key)}
+                  style={[
+                    ui.input,
+                    { flex: 1 },
+                    excluded.includes(c.import_key) && {
+                      color: "#737387",
+                      backgroundColor: "transparent",
+                      borderColor: "transparent",
+                    },
+                  ]}
                   value={c.name}
                   onChangeText={(name) =>
                     setPreview((p) =>
@@ -296,121 +332,159 @@ export default function ImportScreen() {
                   }
                 />
               </View>
-              <Text style={ui.text}>
-                {c.course_code} · {c.credits} נ״ז · {c.weekly_hours} שעות
-              </Text>
-              <Disclosure
-                title={`${c.slots_data.length} מפגשים שבועיים · הצגה ועריכה`}
-              >
-                {c.slots_data.map((slot, si) => (
-                  <View
-                    key={si}
-                    style={{
-                      gap: 8,
-                      paddingVertical: 10,
-                      borderTopWidth: 1,
-                      borderTopColor: "#38384F",
-                    }}
+              {excluded.includes(c.import_key) ? (
+                <Text style={[ui.text, { color: "#646477" }]}>
+                  {c.course_code} · {c.credits} נ״ז · {c.weekly_hours} שעות
+                </Text>
+              ) : (
+                <View style={{ gap: 12 }}>
+                  <CourseColorPicker
+                    color={c.color ?? courseColor(index)}
+                    disabled={busy}
+                    onChange={(color) =>
+                      setPreview((p) =>
+                        p
+                          ? {
+                              ...p,
+                              courses: p.courses.map((item, i) =>
+                                i === index ? { ...item, color } : item,
+                              ),
+                            }
+                          : p,
+                      )
+                    }
+                  />
+                  <Text style={ui.text}>
+                    {c.course_code} · {c.credits} נ״ז · {c.weekly_hours} שעות
+                  </Text>
+                  <Disclosure
+                    title={`${c.slots_data.length} מפגשים שבועיים · הצגה ועריכה`}
                   >
-                    <Text style={ui.subtitle}>
-                      {slot.type === "exercise" ? "תרגול" : "הרצאה / מעבדה"} ·
-                      יום {"אבגדהוש"[slot.day_of_week]}
-                    </Text>
-                    <View style={ui.row}>
-                      {(["start_time", "end_time"] as const).map((field) => (
-                        <TextInput
-                          key={field}
-                          accessibilityLabel={
-                            field === "start_time" ? "שעת התחלה" : "שעת סיום"
+                    {c.slots_data.map((slot, si) => (
+                      <View
+                        key={si}
+                        style={{
+                          gap: 8,
+                          paddingVertical: 10,
+                          borderTopWidth: 1,
+                          borderTopColor: "#38384F",
+                        }}
+                      >
+                        <Text style={ui.subtitle}>
+                          {slot.type === "exercise" ? "תרגול" : "הרצאה / מעבדה"}{" "}
+                          · יום {"אבגדהוש"[slot.day_of_week]}
+                        </Text>
+                        <View style={ui.row}>
+                          {(["start_time", "end_time"] as const).map(
+                            (field) => (
+                              <TextInput
+                                key={field}
+                                accessibilityLabel={
+                                  field === "start_time"
+                                    ? "שעת התחלה"
+                                    : "שעת סיום"
+                                }
+                                editable={!busy}
+                                style={[ui.input, { flex: 1 }]}
+                                value={slot[field]}
+                                onChangeText={(value) =>
+                                  setPreview((p) =>
+                                    p
+                                      ? {
+                                          ...p,
+                                          courses: p.courses.map((item, i) =>
+                                            i === index
+                                              ? {
+                                                  ...item,
+                                                  slots_data:
+                                                    item.slots_data.map(
+                                                      (s, j) =>
+                                                        j === si
+                                                          ? {
+                                                              ...s,
+                                                              [field]: value,
+                                                            }
+                                                          : s,
+                                                    ),
+                                                }
+                                              : item,
+                                          ),
+                                        }
+                                      : p,
+                                  )
+                                }
+                              />
+                            ),
+                          )}
+                        </View>
+                        <View style={ui.row}>
+                          {"אבגדהוש".split("").map((day, di) => (
+                            <TouchableOpacity
+                              key={day}
+                              accessibilityRole="button"
+                              accessibilityLabel={`יום ${day}`}
+                              disabled={busy}
+                              style={{
+                                flex: 1,
+                                paddingVertical: 8,
+                                borderRadius: 8,
+                                backgroundColor:
+                                  slot.day_of_week === di
+                                    ? "#7C3AED"
+                                    : "#0F0F1A",
+                              }}
+                              onPress={() =>
+                                editSlot(index, si, { day_of_week: di })
+                              }
+                            >
+                              <Text
+                                style={{ textAlign: "center", color: "#fff" }}
+                              >
+                                {day}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                        <Action
+                          secondary
+                          disabled={busy}
+                          title={
+                            slot.type === "exercise"
+                              ? "סוג: תרגול · לחצו לשינוי"
+                              : "סוג: הרצאה / מעבדה · לחצו לשינוי"
                           }
-                          editable={!busy}
-                          style={[ui.input, { flex: 1 }]}
-                          value={slot[field]}
-                          onChangeText={(value) =>
-                            setPreview((p) =>
-                              p
-                                ? {
-                                    ...p,
-                                    courses: p.courses.map((item, i) =>
-                                      i === index
-                                        ? {
-                                            ...item,
-                                            slots_data: item.slots_data.map(
-                                              (s, j) =>
-                                                j === si
-                                                  ? { ...s, [field]: value }
-                                                  : s,
-                                            ),
-                                          }
-                                        : item,
-                                    ),
-                                  }
-                                : p,
-                            )
+                          onPress={() =>
+                            editSlot(index, si, {
+                              type:
+                                slot.type === "exercise"
+                                  ? "lecture"
+                                  : "exercise",
+                            })
                           }
                         />
-                      ))}
-                    </View>
-                    <View style={ui.row}>
-                      {"אבגדהוש".split("").map((day, di) => (
-                        <TouchableOpacity
-                          key={day}
-                          accessibilityRole="button"
-                          accessibilityLabel={`יום ${day}`}
-                          disabled={busy}
-                          style={{
-                            flex: 1,
-                            paddingVertical: 8,
-                            borderRadius: 8,
-                            backgroundColor:
-                              slot.day_of_week === di ? "#7C3AED" : "#0F0F1A",
-                          }}
-                          onPress={() =>
-                            editSlot(index, si, { day_of_week: di })
+                        <Text style={ui.text}>מרצה</Text>
+                        <TextInput
+                          accessibilityLabel="מרצה"
+                          editable={!busy}
+                          style={ui.input}
+                          value={slot.lecturer}
+                          onChangeText={(lecturer) =>
+                            editSlot(index, si, { lecturer })
                           }
-                        >
-                          <Text style={{ textAlign: "center", color: "#fff" }}>
-                            {day}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                    <Action
-                      secondary
-                      disabled={busy}
-                      title={
-                        slot.type === "exercise"
-                          ? "סוג: תרגול · לחצו לשינוי"
-                          : "סוג: הרצאה / מעבדה · לחצו לשינוי"
-                      }
-                      onPress={() =>
-                        editSlot(index, si, {
-                          type:
-                            slot.type === "exercise" ? "lecture" : "exercise",
-                        })
-                      }
-                    />
-                    <Text style={ui.text}>מרצה</Text>
-                    <TextInput
-                      accessibilityLabel="מרצה"
-                      editable={!busy}
-                      style={ui.input}
-                      value={slot.lecturer}
-                      onChangeText={(lecturer) =>
-                        editSlot(index, si, { lecturer })
-                      }
-                    />
-                    <Text style={ui.text}>חדר</Text>
-                    <TextInput
-                      accessibilityLabel="חדר"
-                      editable={!busy}
-                      style={ui.input}
-                      value={slot.room}
-                      onChangeText={(room) => editSlot(index, si, { room })}
-                    />
-                  </View>
-                ))}
-              </Disclosure>
+                        />
+                        <Text style={ui.text}>חדר</Text>
+                        <TextInput
+                          accessibilityLabel="חדר"
+                          editable={!busy}
+                          style={ui.input}
+                          value={slot.room}
+                          onChangeText={(room) => editSlot(index, si, { room })}
+                        />
+                      </View>
+                    ))}
+                  </Disclosure>
+                </View>
+              )}
             </View>
           ))}
           <Disclosure title="פרטים אקדמיים שיישמרו בחשבון">
