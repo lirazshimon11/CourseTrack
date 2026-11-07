@@ -123,10 +123,10 @@ export default function ImportScreen() {
     setMessage("");
     try {
       const capability = await supabase.rpc("import_semester_capabilities");
-      if (capability.error || capability.data !== 2) {
+      if (capability.error || capability.data !== 3) {
         setMessage(capability.error && capability.error.code !== "PGRST202"
           ? "לא ניתן לבדוק את תמיכת השרת בייבוא. לא נשמרו שינויים; נסו שוב."
-          : "נדרש עדכון מסד הנתונים לפני הייבוא: על המנהל להריץ את 202611070004_import_contract.sql ב־Supabase. הבחירות שלכם נשמרו בתצוגה זו.");
+          : "נדרש עדכון מסד הנתונים לפני הייבוא: על המנהל להריץ את 202611070005_import_preview_colors.sql ב־Supabase. הבחירות שלכם נשמרו בתצוגה זו.");
         return;
       }
       const { data, error } = await supabase.rpc("import_semester", {
@@ -499,7 +499,7 @@ export default function ImportScreen() {
             <Text style={ui.text}>שדה ריק לא יחליף מידע קיים.</Text>
           </Disclosure>
           <Text style={ui.text}>
-            בקורס שכבר יובא יעודכנו רק פרטים ששיניתם כאן, כולל הצבע. הנוכחות וההערות הקיימות נשמרות.
+            באישור יישמרו הצבעים המוצגים, גם בקורסים שכבר יובאו. פרטים אחרים יעודכנו רק אם שיניתם אותם כאן. הנוכחות וההערות הקיימות נשמרות.
           </Text>
           {!hasDates && semester && (
             <Text style={[ui.text, { color: "#FCD34D" }]}>
