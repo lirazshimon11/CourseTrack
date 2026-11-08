@@ -3,7 +3,6 @@ import {
   View,
   PanResponder,
   Animated,
-  StyleSheet,
   LayoutAnimation,
   Platform,
   UIManager,
@@ -111,7 +110,7 @@ export const JSReorderList = ({ data, renderItem, onReorder, itemHeight, onDragS
   ).current;
 
   return (
-    <View style={styles.container} {...panResponder.panHandlers}>
+    <View {...panResponder.panHandlers}>
       {localData.map((item, index) => {
         const isActive = activeId === item.id;
         
@@ -151,8 +150,3 @@ export const JSReorderList = ({ data, renderItem, onReorder, itemHeight, onDragS
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    paddingBottom: 200,
-  },
-});

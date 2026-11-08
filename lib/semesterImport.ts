@@ -51,7 +51,7 @@ export function parseSemesterText(text: string): ImportPreview {
       ],
     };
   const semester = (semesters[0] as Semester) ?? null;
-  for (const line of lines) {
+  for (const [lineIndex, line] of lines.entries()) {
     if (!line || /^=+$/.test(line)) continue;
     if (/שם שיעור/.test(line) && /קוד שיעור/.test(line)) {
       inTable = true;
@@ -101,7 +101,11 @@ export function parseSemesterText(text: string): ImportPreview {
     }
     if (!m) {
       if (/\d{2}:\d{2}/.test(line)) {
-        warnings.push("שורה עם שעות לא זוהתה. בדקו שלא חסר קורס בתצוגה.");
+        // Export/print timestamps are document metadata, not missed meetings.
+        const timestamp = /^(?:(?:תאריך|מועד)\s+(?:הדפסה|הפקה|יצירה)|הודפס\s+ב|הופק\s+ב)/.test(line);
+        if (!timestamp || /\d{5,6}-\d+/.test(line)) {
+          warnings.push(`שורה ${lineIndex + 1} לא יובאה כי לא זוהה בה מבנה של מפגש:\n${line}\nאם זו שורת קורס, בדקו שהוא מופיע עם השעות הנכונות. אם זו כותרת או שורת מידע במסמך, אפשר להתעלם ממנה.`);
+        }
         pending = "";
       } else if (inTable && !/סה["״']?כ|מערכת|עמוד|סמסטר/.test(line)) {
         pending = line;
@@ -117,7 +121,7 @@ export function parseSemesterText(text: string): ImportPreview {
       !Number.isFinite(Number(credit)) ||
       !Number.isFinite(Number(hours))
     ) {
-      warnings.push(`לא ניתן לייבא שעות לא תקינות: ${name}`);
+      warnings.push(`שורה ${lineIndex + 1} לא יובאה: פרטי המפגש או השעות אינם תקינים (${name || 'ללא שם קורס'}).\n${line}`);
       continue;
     }
     rows.push({

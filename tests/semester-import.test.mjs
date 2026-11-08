@@ -40,3 +40,17 @@ test('reject invalid times, unknown rows warn, no semester guess or duplicate sl
  const bad=parseSemesterText(formatted.replace('08:00','28:00')+'\nunexpected 12:00');assert.ok(bad.warnings.length>=2);
  assert.equal(parseSemesterText('פרטים לא ידועים').courses.length,0);
 });
+
+test('warnings identify every unparsed source row and ignore explicit print metadata',()=>{
+ const first='קורס שלא זוהה 12:00 13:00';
+ const second='עוד קורס 15:00 16:00';
+ const p=parseSemesterText('תאריך הדפסה: 09.11.2026 10:30\n'+formatted+'\n'+first+'\n'+second);
+ assert.equal(p.courses.length,8);
+ assert.equal(p.warnings.length,2);
+ assert.ok(p.warnings[0].includes('שורה 16') && p.warnings[0].includes(first));
+ assert.ok(p.warnings[1].includes('שורה 17') && p.warnings[1].includes(second));
+ const invalid=parseSemesterText(formatted.replace('08:00','28:00'));
+ assert.ok(invalid.warnings[0].includes('שורה 1') && invalid.warnings[0].includes('28:00'));
+ const suspicious=parseSemesterText(formatted+'\nתאריך הדפסה 50060-1 12:00');
+ assert.equal(suspicious.warnings.length,1,'a course code is never silently discarded as metadata');
+});

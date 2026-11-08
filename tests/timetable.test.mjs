@@ -39,9 +39,12 @@ test('compact rendering keeps its ratio and readable text with all or no details
   const ctx={
     font:'', measureText(value){return {width:value.replace(/[\u2066\u2069]/g,'').length*Number(/([\d.]+)px/.exec(this.font)?.[1] || 22)*0.54};},
     fillRect(){},beginPath(){},moveTo(){},lineTo(){},stroke(){},fill(){},clip(){},save(){},restore(){block=null;},
-    roundRect(x,y,w,h){block={x,y,w,h};},
+    roundRect(x,y,w,h){block={x,y,w,h,titleSize:null};},
     fillText(value,x,y){
-      if(block){const size=Number(/([\d.]+)px/.exec(this.font)[1]);assert.ok(y-size/2>=block.y && y+size/2<=block.y+block.h,`vertical fit: ${value}`);assert.ok(this.measureText(value).width<=block.w-14,`horizontal fit: ${value}`);assert.ok(size>=22);sizes.push(size);}
+      if(block){const size=Number(/([\d.]+)px/.exec(this.font)[1]);assert.ok(y-size/2>=block.y && y+size/2<=block.y+block.h,`vertical fit: ${value}`);assert.ok(this.measureText(value).width<=block.w-14,`horizontal fit: ${value}`);assert.ok(size>=16*0.85);sizes.push(size);
+        if(this.font.startsWith('bold ')) {block.titleSize ??= size; assert.equal(size,block.titleSize);}
+        else {assert.ok(block.titleSize);assert.ok(Math.abs(size/block.titleSize-0.85)<1e-10,'details always use exactly 85% of title size and normal weight');}
+      }
       written.push(value);
     },
   };
@@ -58,17 +61,24 @@ test('compact rendering keeps its ratio and readable text with all or no details
     }
     const longCourse={...course([slot('08:00','11:00'),slot('11:00','12:00',0,'exercise'),slot('19:00','20:00',5)]),name:'אותות אקראיים'};
     const maxima=[];
-    for(const requested of [22,28,34,40]) {
+    for(const requested of [16,32,37,44]) {
       sizes.length=0;
       await api.renderTimetable([longCourse],'בדיקת גודל',api.DEFAULT_TIMETABLE_OPTIONS,requested);
       const maximum=Math.max(...sizes);
-      assert.ok(maximum<=Math.round(requested*1.18),'never enlarge beyond chosen size, even in spacious cells');
+      assert.equal(maximum,requested,'chosen number is the actual title size in spacious cells');
       maxima.push(maximum);
     }
     assert.ok(maxima[0]<maxima[1] && maxima[1]<maxima[2] && maxima[2]<maxima[3],'each user size changes output');
     sizes.length=0;
     await api.renderTimetable([longCourse],'ברירת מחדל');
     assert.equal(Math.max(...sizes),maxima[1],'default is the moderate normal size');
+    for (const title of [true,false]) for (const subtitle of [true,false]) {
+      written.length=0;
+      await api.renderTimetable([longCourse],'כותרת משנה לבדיקה',api.DEFAULT_TIMETABLE_OPTIONS,32,{title,subtitle});
+      assert.equal(written.includes('מערכת השעות שלי'),title);
+      assert.equal(written.includes('כותרת משנה לבדיקה'),subtitle);
+      assert.ok(written.includes('ראשון') && written.includes('שישי'),'day headers stay visible');
+    }
   } finally { delete globalThis.document; }
 });
 

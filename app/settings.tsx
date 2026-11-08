@@ -5,7 +5,7 @@ import { supabase } from "../lib/supabase";
 import { useAcademicYear } from "../hooks/useAcademicYear";
 import { useCourses } from "../hooks/useCourses";
 import { ConfirmModal } from "../components/ConfirmModal";
-import { TimetableExport } from "../components/TimetableExport";
+import { AccountDetails } from "../components/AccountDetails";
 import { Page, ui, Action, Badge, Disclosure } from "../components/SettingsUI";
 export default function SettingsScreen() {
   const router = useRouter();
@@ -16,8 +16,8 @@ export default function SettingsScreen() {
   } | null>(null);
   const [institutionLoading, setInstitutionLoading] = useState(true);
   const [institutionError, setInstitutionError] = useState(false);
-  const { courses, loading: coursesLoading, deleteAllData } = useCourses(academicYear?.id);
-  const [email, setEmail] = useState("");
+  const { deleteAllData } = useCourses(academicYear?.id);
+  const [accountRevision, setAccountRevision] = useState(0);
   const [admin, setAdmin] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -64,9 +64,6 @@ export default function SettingsScreen() {
           if (active) setInstitutionLoading(false);
         }
       })();
-      void supabase.auth
-        .getUser()
-        .then(({ data }) => setEmail(data.user?.email ?? ""));
       void supabase
         .rpc("is_app_admin")
         .then(({ data }) => setAdmin(data === true));
@@ -84,6 +81,7 @@ export default function SettingsScreen() {
     setBusy(true);
     try {
       await deleteAllData();
+      setAccountRevision(value => value + 1);
       setMessage("הקורסים נמחקו. הגדרות הלימודים נשמרו.");
     } catch {
       setMessage("המחיקה נכשלה. נסו שוב.");
@@ -109,7 +107,11 @@ export default function SettingsScreen() {
           onPress={() => router.push("/import")}
         />
       </View>
-      {!yearLoading && !coursesLoading && <TimetableExport courses={courses} yearLabel={academicYear?.label ?? 'הקורסים שלי'} />}
+      <View style={ui.card}>
+        <Text style={ui.subtitle}>מערכת השעות שלי</Text>
+        <Text style={ui.text}>בחירת סמסטר, עיצוב המערכת והורדת תמונה — בעמוד אחד.</Text>
+        <Action title="יצירת מערכת שעות" onPress={() => router.push('/timetable')} />
+      </View>
       <Text style={ui.subtitle}>הלימודים שלי</Text>
       <View style={ui.card}>
         {!institutionLoading && !institutionError && institution && (
@@ -149,21 +151,6 @@ export default function SettingsScreen() {
           onPress={() => router.push("/calendars")}
         />
       </View>
-      <Disclosure title="החשבון שלי">
-        <Text style={ui.text}>{email}</Text>
-        <Text style={ui.text}>הקורסים וההתקדמות פרטיים לחשבון שלך.</Text>
-        <Action
-          secondary
-          disabled={busy}
-          title="התנתקות"
-          onPress={async () => {
-            setBusy(true);
-            const { error } = await supabase.auth.signOut();
-            if (error) setMessage("ההתנתקות נכשלה");
-            setBusy(false);
-          }}
-        />
-      </Disclosure>
       <View style={ui.card}>
         <Text style={ui.subtitle}>ייצוא כל נתוני הקורסים שלי</Text>
         <Text style={ui.text}>קובץ JSON עם כל הקורסים מכל השנים והסמסטרים, כל המפגשים, סימוני הנוכחות וההיעדרות, ההערות שכתבתם ופרטי לוחות הלימודים.</Text>
@@ -190,6 +177,33 @@ export default function SettingsScreen() {
           <TouchableOpacity accessibilityRole="button" onPress={() => router.push('/admin')} style={[ui.button,{borderWidth:2,borderColor:'#FACC15',backgroundColor:'#292515'}]}><Text style={[ui.buttonText,{color:'#FDE68A'}]}>מעבר לדף המנהל</Text></TouchableOpacity>
         </View>
       )}
+      <Disclosure title="החשבון שלי">
+        <AccountDetails key={accountRevision} />
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel="התנתקות מהחשבון"
+          accessibilityState={{ disabled: busy }}
+          disabled={busy}
+          style={[
+            ui.button,
+            { backgroundColor: '#7F1D1D', borderColor: '#F87171', borderWidth: 1 },
+            busy && { opacity: 0.45 },
+          ]}
+          onPress={async () => {
+            setBusy(true);
+            try {
+              const { error } = await supabase.auth.signOut();
+              if (error) setMessage('ההתנתקות נכשלה. נסו שוב.');
+            } catch {
+              setMessage('ההתנתקות נכשלה. נסו שוב.');
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          <Text style={[ui.buttonText, { color: '#FFFFFF' }]}>התנתקות</Text>
+        </TouchableOpacity>
+      </Disclosure>
       <ConfirmModal
         visible={confirm}
         title="מחיקת הקורסים שלי"

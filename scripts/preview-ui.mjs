@@ -8,7 +8,7 @@ const root = resolve(".");
 const port = Number(process.env.PREVIEW_PORT || 8082);
 const result = await build({
   stdin: {
-    contents: `import React from 'react';import {createRoot} from 'react-dom/client';import Settings from './app/settings';import Calendars from './app/calendars';import Admin from './app/admin';import Import from './app/import';const Component=({'/settings':Settings,'/calendars':Calendars,'/admin':Admin,'/import':Import})[location.pathname]||Settings;createRoot(document.getElementById('root')).render(<Component/>);`,
+    contents: `import React from 'react';import {createRoot} from 'react-dom/client';import Settings from './app/settings';import Calendars from './app/calendars';import Admin from './app/admin';import Import from './app/import';import Timetable from './app/timetable';const Component=({'/settings':Settings,'/calendars':Calendars,'/admin':Admin,'/import':Import,'/timetable':Timetable})[location.pathname]||Settings;createRoot(document.getElementById('root')).render(<Component/>);`,
     loader: "tsx",
     resolveDir: root,
   },
@@ -34,7 +34,7 @@ const result = await build({
           resolveDir: root,
           contents:
             a.path === "expo-router"
-              ? `import {useEffect} from 'react';export const useFocusEffect=fn=>useEffect(fn,[fn]);export const useRouter=()=>({push:p=>location.assign(p),replace:p=>location.assign(p)});`
+              ? `import {useEffect} from 'react';export const useFocusEffect=fn=>useEffect(fn,[fn]);export const useRouter=()=>({push:p=>location.assign(p),replace:p=>location.replace(p),canGoBack:()=>history.length>1,back:()=>history.back()});`
               : a.path === "react-native-safe-area-context"
                 ? `export {View as SafeAreaView} from 'react-native-web';`
                 : a.path.endsWith("useAcademicYear")

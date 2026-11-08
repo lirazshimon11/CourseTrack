@@ -87,7 +87,7 @@ export function Page({
       <View style={ui.header}>
         <TouchableOpacity
           accessibilityRole="button"
-          onPress={() => router.replace(title === "הגדרות" ? "/" : "/settings")}
+          onPress={() => router.canGoBack() ? router.back() : router.replace('/')}
         >
           <Text style={{ color: "#C4B5FD" }}>→ חזרה</Text>
         </TouchableOpacity>

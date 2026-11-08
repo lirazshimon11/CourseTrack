@@ -8,13 +8,13 @@ export const TIMETABLE_FIELDS = {
 export type TimetableOptions = Record<keyof typeof TIMETABLE_FIELDS, boolean>;
 export const DEFAULT_TIMETABLE_OPTIONS: TimetableOptions = { type: true, times: true, lecturer: true, room: true, code: true, credits: true };
 export const TIMETABLE_RATIO = 1.15;
-export const TIMETABLE_TEXT_SIZES = [
-  { value: 22, label: 'קטן' },
-  { value: 28, label: 'רגיל' },
-  { value: 34, label: 'גדול' },
-  { value: 40, label: 'גדול מאוד' },
-];
-export const DEFAULT_TIMETABLE_TEXT_SIZE = 28;
+export const MIN_TIMETABLE_TEXT_SIZE = 16;
+export const MAX_TIMETABLE_TEXT_SIZE = 72;
+export const DEFAULT_TIMETABLE_TEXT_SIZE = 32;
+export const TIMETABLE_DETAIL_RATIO = 0.85;
+export const TIMETABLE_HEADINGS = { title: 'כותרת ראשית — מערכת השעות שלי', subtitle: 'כותרת משנה — שנת הלימודים והסמסטר' };
+export type TimetableHeadings = Record<keyof typeof TIMETABLE_HEADINGS, boolean>;
+export const DEFAULT_TIMETABLE_HEADINGS: TimetableHeadings = { title: true, subtitle: true };
 export function entryDetails(e: TimetableEntry, options: TimetableOptions): string[] {
   const details = [];
   const meeting = [options.type ? (e.slot.type === 'exercise' ? 'תרגול' : 'הרצאה') : '', options.times ? `\u2066${e.slot.start_time.slice(0,5)}–${e.slot.end_time.slice(0,5)}\u2069` : ''].filter(Boolean);
@@ -65,12 +65,13 @@ export function tint(color: string, exercise: boolean) {
   return '#' + [1,3,5].map(i => Math.round(parseInt(hex.slice(i,i+2),16) * (1-white) + 255*white).toString(16).padStart(2,'0')).join('');
 }
 
-export async function renderTimetable(courses: Course[], subtitle: string, options = DEFAULT_TIMETABLE_OPTIONS, textSize = DEFAULT_TIMETABLE_TEXT_SIZE): Promise<Blob> {
-  const requestedSize = Number.isFinite(textSize) ? Math.max(22, Math.min(40, Math.round(textSize))) : DEFAULT_TIMETABLE_TEXT_SIZE;
+export async function renderTimetable(courses: Course[], subtitle: string, options = DEFAULT_TIMETABLE_OPTIONS, textSize = DEFAULT_TIMETABLE_TEXT_SIZE, headings = DEFAULT_TIMETABLE_HEADINGS): Promise<Blob> {
+  const requestedSize = Number.isFinite(textSize) ? Math.max(MIN_TIMETABLE_TEXT_SIZE, Math.min(MAX_TIMETABLE_TEXT_SIZE, Math.round(textSize))) : DEFAULT_TIMETABLE_TEXT_SIZE;
+  const minimumSize = Math.min(26, requestedSize);
   await document.fonts.ready;
   const model = buildTimetable(courses);
   if (!model.entries.length) throw new Error('אין מפגשים עם שעות תקינות בימים ראשון עד שישי.');
-  const margin = 32, timeWidth = 100, top = 170;
+  const margin = 32, timeWidth = 100, top = 80 + (headings.title ? 50 : 0) + (headings.subtitle ? 40 : 0);
   let width = 1844, height = Math.round(width / TIMETABLE_RATIO);
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
@@ -88,9 +89,9 @@ export async function renderTimetable(courses: Course[], subtitle: string, optio
     if (line) lines.push(line);
     return lines.map(line => line.replace(/^\s*·\s*|\s*·\s*$/g, '')).filter(Boolean);
   };
-  const linesFor = (e: TimetableEntry, column: number, size = 22) => {
+  const linesFor = (e: TimetableEntry, column: number, titleSize = minimumSize) => {
     const available = column / e.lanes - 28;
-    const titleSize = Math.round(size * 1.18);
+    const size = titleSize * TIMETABLE_DETAIL_RATIO;
     const details = entryDetails(e, options);
     const wordsFit = (value: string, fontSize: number, bold: boolean) => {
       ctx.font = `${bold ? 'bold ' : ''}${fontSize}px Heebo_400Regular, Arial, sans-serif`;
@@ -120,8 +121,8 @@ export async function renderTimetable(courses: Course[], subtitle: string, optio
     ctx.direction = 'rtl'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText(value,x,y,maxWidth);
   };
-  text('מערכת השעות שלי',width/2,48,38,true);
-  text(subtitle,width/2,94,23);
+  if (headings.title) text('מערכת השעות שלי',width/2,48,38,true);
+  if (headings.subtitle) text(subtitle,width/2,headings.title ? 94 : 44,23);
   ctx.fillStyle = '#e5f2f8'; ctx.fillRect(margin,top-48,width-margin*2,48);
   ctx.fillRect(margin+column*6,top,timeWidth,height-top-50);
   WEEKDAYS.forEach((day,i) => text(day,margin+(5-i)*column+column/2,top-24,25,true));
@@ -140,7 +141,7 @@ export async function renderTimetable(courses: Course[], subtitle: string, optio
     ctx.strokeStyle=tint(e.course.color,false); ctx.stroke(); ctx.clip();
     // Respect the user's chosen size; reduce only in cells that cannot fit it.
     let layout = linesFor(e,column);
-    for (let size = 23; size <= requestedSize; size++) {
+    for (let size = minimumSize + 1; size <= requestedSize; size++) {
       const candidate = linesFor(e,column,size);
       if (candidate.height > h-20 || !candidate.wholeWordsFit) break;
       layout = candidate;

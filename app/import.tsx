@@ -262,25 +262,13 @@ export default function ImportScreen() {
             title="בחירת קובץ או פלט אחר"
             onPress={() => setPreview(null)}
           />
-          <View style={ui.card}>
-            <Text style={ui.subtitle}>2 · בדיקה לפני שמירה</Text>
-            <Text style={ui.text}>
-              {selected.length} קורסים ·{" "}
-              {selected.reduce((n, c) => n + c.slots_data.length, 0)} מפגשים
-              בשבוע · {selected.reduce((n, c) => n + c.credits, 0)} נקודות זכות
-            </Text>
-            <Text style={ui.text}>
-              תרגולים משויכים לפי שם הקורס. בדקו את השיוך והשעות. ניתן לבחור צבע
-              ולהסיר קורס מהייבוא.
-            </Text>
-          </View>
           {preview.warnings.length > 0 && (
             <View style={[ui.card, { borderColor: "#B78B32" }]}>
               <Text style={[ui.subtitle, { color: "#FCD34D" }]}>
                 דורש תשומת לב
               </Text>
               {preview.warnings.map((w) => (
-                <Text key={w} style={ui.text}>
+                <Text key={w} selectable style={ui.text}>
                   {w}
                 </Text>
               ))}
@@ -514,6 +502,9 @@ export default function ImportScreen() {
               הלוח באזור שבראש המסך; אין צורך לנתח את הקובץ מחדש.
             </Text>
           )}
+          <Text style={ui.text}>
+            {selected.length} קורסים · {selected.reduce((n, c) => n + c.slots_data.length, 0)} מפגשים בשבוע · {selected.reduce((n, c) => n + c.credits, 0)} נקודות זכות
+          </Text>
           <Action
             disabled={
               busy ||

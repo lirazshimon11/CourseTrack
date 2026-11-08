@@ -1,19 +1,7 @@
 import { fetchHit } from './hit-tls.mjs';
-import { Agent, fetch as publicFetch } from 'undici';
-import { lookup } from 'node:dns';
+import { fetch as publicFetch } from 'undici';
+import { publicAgent } from './public-network.mjs';
 
-// Resolve and validate at connection time, including redirect destinations.
-const publicAgent = new Agent({ connect: { lookup(hostname, options, callback) {
-  lookup(hostname, { ...options, family: 4, all: true }, (error, addresses) => {
-    if (error) return callback(error);
-    const safe = addresses.filter(({address}) => {
-      const [a,b] = address.split('.').map(Number);
-      return a>0 && a<224 && a!==10 && a!==127 && !(a===169 && b===254) && !(a===172 && b>=16 && b<=31) && !(a===192 && (b===168 || b===0)) && !(a===100 && b>=64 && b<=127) && !(a===198 && (b===18 || b===19));
-    });
-    if (!safe.length || safe.length !== addresses.length) return callback(new Error('כתובת המקור אינה ציבורית'));
-    if (options.all) callback(null,safe); else callback(null,safe[0].address,4);
-  });
-} } });
 const fetchInstitution = (url, options) => ['hit.ac.il','www.hit.ac.il'].includes(new URL(url).hostname)
   ? fetchHit(url,options) : publicFetch(url,{...options,dispatcher:publicAgent});
 
