@@ -2,7 +2,7 @@ import { CourseToggle } from "../components/CourseToggle";
 import { courseColor } from "../constants/courseColors";
 import { CourseColorPicker } from "../components/CourseColorPicker";
 import { CalendarRecovery } from "../components/CalendarRecovery";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Platform,
   Text,
@@ -26,6 +26,30 @@ import { profileFields } from "../lib/calendars";
 import { supabase } from "../lib/supabase";
 import { Semester } from "../types";
 import { clearImportDraft, loadImportDraft, saveImportDraft } from "../lib/importDraft";
+
+function PdfFileButton({ disabled, onFile }: { disabled: boolean; onFile: (file: File) => void }) {
+  const host = useRef<any>(null);
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !host.current) return;
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.pdf,application/pdf';
+    input.setAttribute('aria-label', 'בחירת PDF מהמכשיר');
+    Object.assign(input.style, { position: 'absolute', inset: '0', width: '100%', height: '100%', opacity: '0', cursor: 'pointer' });
+    const change = () => {
+      const file = input.files?.[0];
+      input.value = '';
+      if (file) onFile(file);
+    };
+    input.addEventListener('change', change);
+    host.current.appendChild(input);
+    return () => { input.removeEventListener('change', change); input.remove(); };
+  }, [onFile]);
+  if (Platform.OS !== 'web') return <Action disabled={disabled} title="בחירת PDF מהמכשיר" onPress={() => {}} />;
+  return <View ref={host} style={[ui.button, { position: 'relative', overflow: 'hidden' }, disabled && { opacity: 0.45 }]}>
+    <Text style={ui.buttonText}>{disabled ? 'מעבד…' : 'בחירת PDF מהמכשיר'}</Text>
+  </View>;
+}
 
 export default function ImportScreen() {
   const router = useRouter();
@@ -64,42 +88,15 @@ export default function ImportScreen() {
     setDone(false);
     setPaste("");
   };
-  const pick = () => {
-    if (Platform.OS !== "web") {
-      setMessage("בחירת PDF זמינה בגרסת הדפדפן. אפשר להדביק פלט כאן.");
-      return;
-    }
-    let input = document.getElementById('course-track-pdf-input') as HTMLInputElement | null;
-    // Expo's HTML shell may omit body children during a client-side route
-    // transition. Create one once as a browser fallback and keep it mounted.
-    if (!input) {
-      input = document.createElement('input');
-      input.id = 'course-track-pdf-input';
-      input.type = 'file';
-      input.accept = '.pdf,application/pdf';
-      input.style.display = 'none';
-      document.body.appendChild(input);
-    }
-    // Resetting makes choosing the same PDF twice emit a change event.
-    input.value = '';
-    input.onchange = async () => {
-      const file = input.files?.[0];
-      input.onchange = null;
-      if (!file) return;
-      setBusy(true);
-      setMessage("");
-      try {
-        prepare(await readLocalPdf(file));
-      } catch {
-        setMessage(
-          "לא ניתן לקרוא את הקובץ. יש לבחור PDF עם טקסט, ללא סיסמה ועד 10MB. אפשר גם להדביק את פלט החילוץ.",
-        );
-      } finally {
-        setBusy(false);
-        input.value = "";
-      }
-    };
-    input.click();
+  const readPdf = async (file: File) => {
+    if (busy) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      prepare(await readLocalPdf(file));
+    } catch {
+      setMessage("לא ניתן לקרוא את הקובץ. יש לבחור PDF עם טקסט, ללא סיסמה ועד 10MB. אפשר גם להדביק את פלט החילוץ.");
+    } finally { setBusy(false); }
   };
   const editSlot = (
     index: number,
@@ -207,13 +204,16 @@ export default function ImportScreen() {
                   ? "המוסד נבחר, אך תאריכי הסמסטר עדיין לא זמינים בחשבון. הקורסים שחולצו נשארים כאן; אפשר לבדוק את הלוח מחדש בלי להעלות שוב את הקובץ."
                   : "בחרו את מוסד הלימודים. השנה והסמסטר יזוהו אוטומטית.")}
           </Text>
+          {academicYear && semester && !context.error && (
+            <Text style={[ui.text, { color: '#C4B5FD' }]}>✓ הייבוא יישמר בשנה ובסמסטר המוצגים למעלה.</Text>
+          )}
           {!academicYear && context.institutionId && (
             <CalendarRecovery
               onRefresh={context.refresh}
             />
           )}
           {context.terms.length > 0 && (
-            <Disclosure title="שינוי הסמסטר או שנת הלימודים">
+            <Disclosure title="רוצה לייבא לשנה או לסמסטר אחרים?">
               {context.terms.map((t) => (
                 <Action
                   key={`${t.year.id}-${t.semester}`}
@@ -243,11 +243,7 @@ export default function ImportScreen() {
         <View style={[ui.card, { borderColor: "#6540A1" }]}>
           <Text style={ui.subtitle}>1 · בחירת הקובץ</Text>
           <Text style={ui.text}>PDF עם טקסט · עד 10MB ו־20 עמודים</Text>
-          <Action
-            disabled={busy}
-            title={busy ? "מעבד…" : "בחירת PDF מהמכשיר"}
-            onPress={pick}
-          />
+          <PdfFileButton disabled={busy} onFile={(file) => void readPdf(file)} />
           <Disclosure title="כבר יש לי פלט טקסט">
             <TextInput
               accessibilityLabel="פלט חילוץ מערכת השעות"
