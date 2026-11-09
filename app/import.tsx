@@ -69,10 +69,16 @@ export default function ImportScreen() {
       setMessage("בחירת PDF זמינה בגרסת הדפדפן. אפשר להדביק פלט כאן.");
       return;
     }
-    const input = document.getElementById('course-track-pdf-input') as HTMLInputElement | null;
+    let input = document.getElementById('course-track-pdf-input') as HTMLInputElement | null;
+    // Expo's HTML shell may omit body children during a client-side route
+    // transition. Create one once as a browser fallback and keep it mounted.
     if (!input) {
-      setMessage('לא ניתן לפתוח את בורר הקבצים. רעננו את העמוד ונסו שוב.');
-      return;
+      input = document.createElement('input');
+      input.id = 'course-track-pdf-input';
+      input.type = 'file';
+      input.accept = '.pdf,application/pdf';
+      input.style.display = 'none';
+      document.body.appendChild(input);
     }
     // Resetting makes choosing the same PDF twice emit a change event.
     input.value = '';
