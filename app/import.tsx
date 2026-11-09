@@ -25,6 +25,8 @@ import { prepareLocalPdfReader, readLocalPdf } from "../lib/localPdf";
 import { profileFields } from "../lib/calendars";
 import { supabase } from "../lib/supabase";
 import { Semester } from "../types";
+import { ImportDiagnostics } from '../components/ImportDiagnostics';
+import { recordDiagnostic } from '../lib/clientDiagnostics';
 
 function PdfFileButton({ disabled, onFile }: { disabled: boolean; onFile: (file: File) => void }) {
   const host = useRef<any>(null);
@@ -38,13 +40,16 @@ function PdfFileButton({ disabled, onFile }: { disabled: boolean; onFile: (file:
     Object.assign(input.style, { position: 'absolute', inset: '0', width: '100%', height: '100%', opacity: '0', cursor: 'pointer' });
     const change = () => {
       const file = input.files?.[0];
+      recordDiagnostic('pdf-input-change', file ? `name=${file.name}; size=${file.size}` : 'no-file');
       input.value = '';
       if (file) onFile(file);
     };
     input.addEventListener('change', change);
+    const click = () => recordDiagnostic('pdf-input-click');
+    input.addEventListener('click', click);
     host.current.appendChild(input);
     inputRef.current = input;
-    return () => { input.removeEventListener('change', change); input.remove(); inputRef.current = null; };
+    return () => { recordDiagnostic('pdf-input-unmounted'); input.removeEventListener('change', change); input.removeEventListener('click', click); input.remove(); inputRef.current = null; };
   }, [onFile]);
   useEffect(() => { if (inputRef.current) inputRef.current.disabled = disabled; }, [disabled]);
   if (Platform.OS !== 'web') return <Action disabled={disabled} title="בחירת PDF מהמכשיר" onPress={() => {}} />;
@@ -91,6 +96,7 @@ export default function ImportScreen() {
   const readPdf = useCallback(async (file: File) => {
     if (readingPdf.current) return;
     readingPdf.current = true;
+    recordDiagnostic('pdf-read-start', `name=${file.name}; size=${file.size}`);
     setBusy(true);
     setMessage("");
     try {
@@ -101,7 +107,9 @@ export default function ImportScreen() {
       setEdited({});
       setDone(false);
       setPaste("");
+      recordDiagnostic('pdf-read-success', `courses=${nextPreview.courses.length}`);
     } catch {
+      recordDiagnostic('pdf-read-failed');
       setMessage("לא ניתן לקרוא את הקובץ. יש לבחור PDF עם טקסט, ללא סיסמה ועד 10MB. אפשר גם להדביק את פלט החילוץ.");
     } finally {
       readingPdf.current = false;
@@ -190,6 +198,7 @@ export default function ImportScreen() {
   return (
     <Page title="ייבוא מערכת שעות">
       <Badge text="עיבוד מקומי · ללא AI" />
+      <ImportDiagnostics />
       <Text style={ui.text}>
         הקובץ נשאר במכשיר. רק הקורסים והפרטים האקדמיים שתאשרו יישמרו בחשבון.
         החילוץ מותאם למבנה מערכת השעות של HIT.
