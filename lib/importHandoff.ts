@@ -29,6 +29,7 @@ export function completeImportHandoff(preview: ImportPreview) {
 }
 export function takeImportHandoff(): ImportPreview | null {
   try {
+    if (!importHandoffActive()) return null;
     const raw = storage()?.getItem(DRAFT_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
