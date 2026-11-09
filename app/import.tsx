@@ -41,11 +41,23 @@ function PdfFileButton({ disabled, onFile }: { disabled: boolean; onFile: (file:
     const change = () => {
       const file = input.files?.[0];
       recordDiagnostic('pdf-input-change', file ? `name=${file.name}; size=${file.size}` : 'no-file');
+      // Keep the marker only while Android is handing the picker result back.
+      // replaceState changes no route and avoids triggering Expo Router.
+      if (window.history.state?.courseTrackPdfPicker) {
+        const { courseTrackPdfPicker: _marker, ...state } = window.history.state;
+        window.history.replaceState(state, '', window.location.href);
+      }
       input.value = '';
       if (file) onFile(file);
     };
     input.addEventListener('change', change);
-    const click = () => recordDiagnostic('pdf-input-click');
+    const click = () => {
+      // Android's system picker returns to an installed PWA with a browser
+      // Back event on some devices. Add an identical URL history entry first,
+      // so that Back consumes this guard and keeps the user on /import.
+      window.history.pushState({ ...(window.history.state ?? {}), courseTrackPdfPicker: true }, '', window.location.href);
+      recordDiagnostic('pdf-input-click; history-guard-added');
+    };
     input.addEventListener('click', click);
     host.current.appendChild(input);
     inputRef.current = input;
