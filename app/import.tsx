@@ -29,47 +29,66 @@ import { ImportDiagnostics } from '../components/ImportDiagnostics';
 import { recordDiagnostic } from '../lib/clientDiagnostics';
 import { beginImportHandoff, cancelImportHandoff, completeImportHandoff, IMPORT_FLOW_EVENT, takeImportHandoff } from '../lib/importHandoff';
 
-function PdfFileButton({ disabled, onFile }: { disabled: boolean; onFile: (file: File) => void }) {
-  const host = useRef<any>(null);
-  const inputRef = useRef<HTMLInputElement | null>(null);
-  useEffect(() => {
-    if (Platform.OS !== 'web' || !host.current) return;
-    const input = document.createElement('input');
+let persistentPdfHandler: ((file: File) => void) | null = null;
+let persistentPdfInputBound = false;
+
+function persistentPdfInput() {
+  let input = document.getElementById('course-track-pdf-input') as HTMLInputElement | null;
+  if (!input) {
+    input = document.createElement('input');
+    input.id = 'course-track-pdf-input';
     input.type = 'file';
-    input.accept = '.pdf,application/pdf';
-    input.setAttribute('aria-label', 'בחירת PDF מהמכשיר');
-    Object.assign(input.style, { position: 'absolute', inset: '0', width: '100%', height: '100%', opacity: '0', cursor: 'pointer' });
-    const change = () => {
-      const file = input.files?.[0];
+    input.style.display = 'none';
+    document.body.appendChild(input);
+  }
+  input.accept = '.pdf,application/pdf';
+  input.setAttribute('aria-label', 'בחירת PDF מהמכשיר');
+  if (!persistentPdfInputBound) {
+    input.addEventListener('change', () => {
+      const file = input!.files?.[0];
       recordDiagnostic('pdf-input-change', file ? `name=${file.name}; size=${file.size}` : 'no-file');
-      // Keep the marker only while Android is handing the picker result back.
-      // replaceState changes no route and avoids triggering Expo Router.
-      if (window.history.state?.courseTrackPdfPicker) {
-        const { courseTrackPdfPicker: _marker, ...state } = window.history.state;
-        window.history.replaceState(state, '', window.location.href);
-      }
-      input.value = '';
-      if (file) onFile(file);
-    };
-    input.addEventListener('change', change);
-    const click = () => {
-      // Android's system picker returns to an installed PWA with a browser
-      // Back event on some devices. Add an identical URL history entry first,
-      // so that Back consumes this guard and keeps the user on /import.
-      window.history.pushState({ ...(window.history.state ?? {}), courseTrackPdfPicker: true }, '', window.location.href);
-      beginImportHandoff();
-      recordDiagnostic('pdf-input-click; history-guard-added');
-    };
-    input.addEventListener('click', click);
-    host.current.appendChild(input);
-    inputRef.current = input;
-    return () => { recordDiagnostic('pdf-input-unmounted'); input.removeEventListener('change', change); input.removeEventListener('click', click); input.remove(); inputRef.current = null; };
-  }, [onFile]);
-  useEffect(() => { if (inputRef.current) inputRef.current.disabled = disabled; }, [disabled]);
+      input!.value = '';
+      if (file) persistentPdfHandler?.(file);
+    });
+    persistentPdfInputBound = true;
+  }
+  return input;
+}
+
+function PdfFileButton({ disabled, onFile }: { disabled: boolean; onFile: (file: File) => void }) {
+  const onFileRef = useRef(onFile);
+  const lastOpen = useRef(0);
+  onFileRef.current = onFile;
+
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    // This input deliberately lives outside the route. Some Android PWAs
+    // temporarily navigate to '/' while their system file picker is open;
+    // a route-owned input would be unmounted before its change event arrives.
+    persistentPdfHandler = (file) => onFileRef.current(file);
+    persistentPdfInput();
+  }, []);
+
+  const openPicker = () => {
+    if (Platform.OS !== 'web' || disabled || Date.now() - lastOpen.current < 500) return;
+    lastOpen.current = Date.now();
+    const input = persistentPdfInput() as HTMLInputElement & { showPicker?: () => void };
+    beginImportHandoff();
+    recordDiagnostic('pdf-picker-open');
+    try {
+      // showPicker is the most reliable path in current Android Chromium;
+      // click remains the compatible fallback for older browsers.
+      if (typeof input.showPicker === 'function') input.showPicker();
+      else input.click();
+    } catch {
+      try { input.click(); } catch { cancelImportHandoff(); }
+    }
+  };
+
   if (Platform.OS !== 'web') return <Action disabled={disabled} title="בחירת PDF מהמכשיר" onPress={() => {}} />;
-  return <View ref={host} style={[ui.button, { position: 'relative', overflow: 'hidden' }, disabled && { opacity: 0.45 }]}>
+  return <TouchableOpacity accessibilityRole="button" accessibilityLabel="בחירת PDF מהמכשיר" disabled={disabled} onPressIn={openPicker} onPress={openPicker} style={[ui.button, disabled && { opacity: 0.45 }]}>
     <Text style={ui.buttonText}>{disabled ? 'מעבד…' : 'בחירת PDF מהמכשיר'}</Text>
-  </View>;
+  </TouchableOpacity>;
 }
 
 export default function ImportScreen() {
