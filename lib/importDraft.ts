@@ -1,7 +1,6 @@
 import { ImportPreview } from './semesterImport';
 
 const DRAFT_KEY = 'coursetrack:import-preview';
-export const PENDING_IMPORT_KEY = 'coursetrack:pending-import';
 
 function storage() {
   return typeof window === 'undefined' ? null : window.sessionStorage;
@@ -22,11 +21,4 @@ export function loadImportDraft(): ImportPreview | null {
 
 export function clearImportDraft() {
   try { storage()?.removeItem(DRAFT_KEY); } catch { /* Storage may be unavailable in private browsing. */ }
-}
-
-export function setPendingImport(value: boolean) {
-  try {
-    if (value) storage()?.setItem(PENDING_IMPORT_KEY, '1');
-    else storage()?.removeItem(PENDING_IMPORT_KEY);
-  } catch { /* The normal web flow works without this recovery aid. */ }
 }

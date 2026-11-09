@@ -24,7 +24,10 @@ export default function Root({ children }: { children: React.ReactNode }) {
         <meta name="theme-color" content="#0F0F1A" />
         
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        <input id="course-track-pdf-input" type="file" accept=".pdf,application/pdf" style={{ display: "none" }} />
+      </body>
     </html>
   );
 }

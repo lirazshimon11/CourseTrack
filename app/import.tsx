@@ -21,11 +21,11 @@ import {
 } from "../components/SettingsUI";
 import { useSemesterContext } from "../hooks/useSemesterContext";
 import { ImportPreview, parseSemesterText } from "../lib/semesterImport";
-import { readLocalPdf } from "../lib/localPdf";
+import { prepareLocalPdfReader, readLocalPdf } from "../lib/localPdf";
 import { profileFields } from "../lib/calendars";
 import { supabase } from "../lib/supabase";
 import { Semester } from "../types";
-import { clearImportDraft, loadImportDraft, saveImportDraft, setPendingImport } from "../lib/importDraft";
+import { clearImportDraft, loadImportDraft, saveImportDraft } from "../lib/importDraft";
 
 export default function ImportScreen() {
   const router = useRouter();
@@ -43,9 +43,11 @@ export default function ImportScreen() {
   const [message, setMessage] = useState("");
   const [done, setDone] = useState(false);
   useEffect(() => {
-    setPendingImport(false);
     const draft = loadImportDraft();
     if (draft) setPreview(draft);
+    // Load the parser before opening the picker. Mobile PWAs are much more
+    // reliable when a file selection does not also start a module download.
+    if (Platform.OS === 'web') void prepareLocalPdfReader().catch(() => undefined);
   }, []);
   const prepare = (text: string) => {
     const result = parseSemesterText(text);
@@ -54,7 +56,6 @@ export default function ImportScreen() {
       courses: result.courses.map((c, i) => ({ ...c, color: courseColor(i) })),
     };
     saveImportDraft(nextPreview);
-    setPendingImport(false);
     setPreview(nextPreview);
 
     setExcluded([]);
@@ -68,15 +69,17 @@ export default function ImportScreen() {
       setMessage("בחירת PDF זמינה בגרסת הדפדפן. אפשר להדביק פלט כאן.");
       return;
     }
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = ".pdf,application/pdf";
-    input.style.display = 'none';
-    document.body.appendChild(input);
+    const input = document.getElementById('course-track-pdf-input') as HTMLInputElement | null;
+    if (!input) {
+      setMessage('לא ניתן לפתוח את בורר הקבצים. רעננו את העמוד ונסו שוב.');
+      return;
+    }
+    // Resetting makes choosing the same PDF twice emit a change event.
+    input.value = '';
     input.onchange = async () => {
       const file = input.files?.[0];
-      input.remove();
-      if (!file) { setPendingImport(false); return; }
+      input.onchange = null;
+      if (!file) return;
       setBusy(true);
       setMessage("");
       try {
@@ -90,8 +93,6 @@ export default function ImportScreen() {
         input.value = "";
       }
     };
-    input.oncancel = () => { input.remove(); setPendingImport(false); };
-    setPendingImport(true);
     input.click();
   };
   const editSlot = (
@@ -159,7 +160,6 @@ export default function ImportScreen() {
       }
       setDone(true);
       clearImportDraft();
-      setPendingImport(false);
       setMessage(
         `נוספו ${data.added} קורסים. עודכנו ${data.updated ?? 0} קורסים. ${data.skipped ? `${data.skipped} קורסים כבר יובאו ונשמרו ללא שינוי.` : ""}`,
       );

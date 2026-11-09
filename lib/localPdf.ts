@@ -4,8 +4,7 @@ declare global {
   }
 }
 let ready: Promise<void> | null = null;
-export async function readLocalPdf(file: File) {
-  if (file.size > 10 * 1024 * 1024) throw new Error("בחרו קובץ עד 10MB.");
+export async function prepareLocalPdfReader() {
   if (!ready)
     ready = new Promise<void>((resolve, reject) => {
       const script = document.createElement("script");
@@ -22,5 +21,11 @@ export async function readLocalPdf(file: File) {
   await ready;
   if (!window.courseTrackReadPdf)
     throw new Error("קורא ה־PDF אינו זמין בדפדפן הזה.");
-  return window.courseTrackReadPdf(await file.arrayBuffer());
+}
+export async function readLocalPdf(file: File) {
+  if (file.size > 10 * 1024 * 1024) throw new Error("בחרו קובץ עד 10MB.");
+  await prepareLocalPdfReader();
+  const reader = window.courseTrackReadPdf;
+  if (!reader) throw new Error("קורא ה־PDF אינו זמין בדפדפן הזה.");
+  return reader(await file.arrayBuffer());
 }
