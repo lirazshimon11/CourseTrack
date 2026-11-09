@@ -1,8 +1,23 @@
 import React, { useEffect, useRef } from 'react';
 import { usePathname, useRouter } from 'expo-router';
 
-const LAST_ROUTE = 'coursetrack:last-route';
-const RESTORE_ARMED = 'coursetrack:restore-route';
+const LAST_ROUTE = 'coursetrack:last-route:v2';
+const ROUTE_TTL_MS = 10 * 60 * 1000;
+
+type SavedRoute = { path: string; savedAt: number };
+
+function readSavedRoute(): string | null {
+  try {
+    const raw = window.localStorage.getItem(LAST_ROUTE);
+    if (!raw) return null;
+    const saved = JSON.parse(raw) as SavedRoute;
+    if (typeof saved.path !== 'string' || !saved.path.startsWith('/') || Date.now() - saved.savedAt > ROUTE_TTL_MS) {
+      window.localStorage.removeItem(LAST_ROUTE);
+      return null;
+    }
+    return saved.path;
+  } catch { return null; }
+}
 
 // Mobile browsers and desktop dev servers can recreate the web app after it
 // returns from another window (including the system file picker). Preserve the
@@ -11,15 +26,17 @@ export function RouteRestorer() {
   const pathname = usePathname();
   const router = useRouter();
   const restored = useRef(false);
+  const initialRoute = useRef<string | null>(null);
+
+  if (initialRoute.current === null && typeof window !== 'undefined') initialRoute.current = readSavedRoute();
 
   useEffect(() => {
     if (restored.current || pathname !== '/' || typeof window === 'undefined') return;
     try {
-      const armed = window.sessionStorage.getItem(RESTORE_ARMED) === '1';
-      const route = window.sessionStorage.getItem(LAST_ROUTE);
-      if (armed && route && route !== '/') {
+      const route = initialRoute.current;
+      if (route && route !== '/') {
         restored.current = true;
-        window.sessionStorage.removeItem(RESTORE_ARMED);
+        window.localStorage.removeItem(LAST_ROUTE);
         router.replace(route);
       }
     } catch { /* Route restoration is an optional browser enhancement. */ }
@@ -27,19 +44,9 @@ export function RouteRestorer() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const preserve = () => {
-      try {
-        window.sessionStorage.setItem(LAST_ROUTE, pathname);
-        window.sessionStorage.setItem(RESTORE_ARMED, '1');
-      } catch { /* Storage may be disabled in private browsing. */ }
-    };
-    const onVisibilityChange = () => { if (document.visibilityState === 'hidden') preserve(); };
-    document.addEventListener('visibilitychange', onVisibilityChange);
-    window.addEventListener('pagehide', preserve);
-    return () => {
-      document.removeEventListener('visibilitychange', onVisibilityChange);
-      window.removeEventListener('pagehide', preserve);
-    };
+    try {
+      window.localStorage.setItem(LAST_ROUTE, JSON.stringify({ path: pathname, savedAt: Date.now() } satisfies SavedRoute));
+    } catch { /* Storage may be disabled in private browsing. */ }
   }, [pathname]);
 
   return null;

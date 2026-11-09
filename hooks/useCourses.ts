@@ -1,5 +1,4 @@
-import { useFocusEffect } from 'expo-router';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Course, Semester, AcademicYear, SlotData } from '../types';
 import { generateSessions } from '../lib/dateUtils';
@@ -8,7 +7,7 @@ export function useCourses(academicYearId?: string | null) {
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchCourses = async () => {
+  const fetchCourses = useCallback(async () => {
     // null is the deliberate "no active year" state. Do not briefly load every
     // course while the home screen is still resolving the selected year.
     if (academicYearId === null) {
@@ -27,9 +26,9 @@ export function useCourses(academicYearId?: string | null) {
       setCourses(data as Course[]);
     }
     setLoading(false);
-  };
+  }, [academicYearId]);
 
-  useFocusEffect(useCallback(() => { void fetchCourses(); }, [academicYearId]));
+  useEffect(() => { void fetchCourses(); }, [fetchCourses]);
 
   const createCourse = async (
     name: string,

@@ -1,5 +1,4 @@
-import { useCallback, useState } from "react";
-import { useFocusEffect } from "expo-router";
+import { useCallback, useEffect, useState } from "react";
 import { loadInstitutionYears } from "../lib/loadInstitutionYears";
 import { supabase } from "../lib/supabase";
 import { AcademicYear } from "../types";
@@ -28,11 +27,7 @@ export function useSemesterContext() {
       setLoading(false);
     }
   }, []);
-  useFocusEffect(
-    useCallback(() => {
-      void refresh();
-    }, [refresh]),
-  );
+  useEffect(() => { void refresh(); }, [refresh]);
   const terms = availableTerms(years);
   const suggested = suggestTerm(years);
   const target = override

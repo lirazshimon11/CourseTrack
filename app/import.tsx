@@ -25,7 +25,6 @@ import { prepareLocalPdfReader, readLocalPdf } from "../lib/localPdf";
 import { profileFields } from "../lib/calendars";
 import { supabase } from "../lib/supabase";
 import { Semester } from "../types";
-import { clearImportDraft, clearImportRecovery, loadImportDraft, saveImportDraft } from "../lib/importDraft";
 
 function PdfFileButton({ disabled, onFile }: { disabled: boolean; onFile: (file: File) => void }) {
   const host = useRef<any>(null);
@@ -71,11 +70,6 @@ export default function ImportScreen() {
   const [message, setMessage] = useState("");
   const [done, setDone] = useState(false);
   useEffect(() => {
-    const draft = loadImportDraft();
-    if (draft) {
-      setPreview(draft);
-      clearImportRecovery();
-    }
     // Load the parser before opening the picker. Mobile PWAs are much more
     // reliable when a file selection does not also start a module download.
     if (Platform.OS === 'web') void prepareLocalPdfReader().catch(() => undefined);
@@ -86,7 +80,6 @@ export default function ImportScreen() {
       ...result,
       courses: result.courses.map((c, i) => ({ ...c, color: courseColor(i) })),
     };
-    saveImportDraft(nextPreview);
     setPreview(nextPreview);
 
     setExcluded([]);
@@ -103,7 +96,6 @@ export default function ImportScreen() {
     try {
       const result = parseSemesterText(await readLocalPdf(file));
       const nextPreview = { ...result, courses: result.courses.map((course, index) => ({ ...course, color: courseColor(index) })) };
-      saveImportDraft(nextPreview);
       setPreview(nextPreview);
       setExcluded([]);
       setEdited({});
@@ -180,7 +172,6 @@ export default function ImportScreen() {
         return;
       }
       setDone(true);
-      clearImportDraft();
       setMessage(
         `נוספו ${data.added} קורסים. עודכנו ${data.updated ?? 0} קורסים. ${data.skipped ? `${data.skipped} קורסים כבר יובאו ונשמרו ללא שינוי.` : ""}`,
       );
@@ -293,7 +284,7 @@ export default function ImportScreen() {
             secondary
             disabled={busy}
             title="בחירת קובץ או פלט אחר"
-            onPress={() => { setPreview(null); clearImportDraft(); }}
+            onPress={() => setPreview(null)}
           />
           {preview.warnings.length > 0 && (
             <View style={[ui.card, { borderColor: "#B78B32" }]}>

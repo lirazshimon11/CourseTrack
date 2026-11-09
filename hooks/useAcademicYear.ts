@@ -1,7 +1,6 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { AcademicYear } from '../types';
-import { useFocusEffect } from 'expo-router';
 
 export function useAcademicYear() {
   const [academicYear, setAcademicYear] = useState<AcademicYear | null>(null);
@@ -24,7 +23,10 @@ export function useAcademicYear() {
     setLoading(false);
   }, []);
 
-  useFocusEffect(useCallback(() => { void fetchYear(); const timer=setInterval(()=>void fetchYear(false),60000); return ()=>clearInterval(timer); }, [fetchYear]));
+  // Reload only when this hook mounts. Returning from another app should not
+  // blank the screen and re-fetch the same year; callers can use refetch when
+  // they have actually changed academic settings.
+  useEffect(() => { void fetchYear(); }, [fetchYear]);
 
   const saveYear = async (year: Omit<AcademicYear, 'id' | 'created_at'>) => {
     if (academicYear) {
