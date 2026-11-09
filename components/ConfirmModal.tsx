@@ -11,10 +11,12 @@ interface Props {
   onConfirm: () => void;
   onCancel: () => void;
   isDestructive?: boolean;
+  confirmDisabled?: boolean;
+  children?: React.ReactNode;
 }
 
 export const ConfirmModal = ({ 
-  visible, title, message, confirmLabel, cancelLabel, onConfirm, onCancel, isDestructive = false 
+  visible, title, message, confirmLabel, cancelLabel, onConfirm, onCancel, isDestructive = false, confirmDisabled = false, children
 }: Props) => {
   return (
     <Modal visible={visible} transparent animationType="fade">
@@ -22,10 +24,12 @@ export const ConfirmModal = ({
         <Pressable style={styles.card}>
           <Text style={styles.title}>{title}</Text>
           <Text style={styles.message}>{message}</Text>
+          {children}
           
           <View style={styles.actions}>
             <TouchableOpacity 
-              style={[styles.btn, isDestructive ? styles.destructiveBtn : styles.confirmBtn]} 
+              disabled={confirmDisabled}
+              style={[styles.btn, isDestructive ? styles.destructiveBtn : styles.confirmBtn, confirmDisabled && { opacity: 0.45 }]} 
               onPress={onConfirm}
             >
               <Text style={styles.btnText}>{confirmLabel}</Text>

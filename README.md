@@ -46,6 +46,10 @@ commit;
 
 5. Register the second account separately. It starts with no academic year or courses. Each account sets its own dates and courses.
 
+## Account deletion
+
+Run `supabase/migrations/202611090003_account_deletion.sql` in Supabase SQL Editor. It adds cascading ownership foreign keys for academic years and courses; profiles, semester history and administrator membership already cascade from `auth.users`. Deploy `api/delete-account.mjs` with the Vercel app and configure the server-only `SUPABASE_URL`, `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` environment variables. The service role key must never be included in the app bundle. Web builds use the current site's `/api/delete-account` endpoint. Native builds must set `EXPO_PUBLIC_API_URL` to the deployed app origin when building. Users can request deletion in Settings > My account after typing “מחיקת החשבון”; the endpoint verifies their access token and deletes only that authenticated user.
+
 Security model follows [Supabase RLS documentation](https://supabase.com/docs/guides/database/postgres/row-level-security).
 
 ## Acceptance checks after database setup

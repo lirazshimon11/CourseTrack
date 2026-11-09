@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Platform, Text, TouchableOpacity, View } from "react-native";
+import { Platform, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { supabase } from "../lib/supabase";
 import { useAcademicYear } from "../hooks/useAcademicYear";
@@ -20,9 +20,35 @@ export default function SettingsScreen() {
   const [accountRevision, setAccountRevision] = useState(0);
   const [admin, setAdmin] = useState(false);
   const [confirm, setConfirm] = useState(false);
+  const [deleteAccountConfirm, setDeleteAccountConfirm] = useState(false);
+  const [deleteAccountPhrase, setDeleteAccountPhrase] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [exporting, setExporting] = useState(false);
+  const deleteAccount = async () => {
+    setDeleteAccountConfirm(false);
+    setBusy(true);
+    setMessage("");
+    try {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !session?.access_token) throw new Error("פג תוקף החיבור. התחברו מחדש ונסו שוב.");
+      const apiBase = process.env.EXPO_PUBLIC_API_URL ?? (typeof window !== "undefined" ? window.location.origin : "");
+      if (!apiBase) throw new Error("כתובת שרת המחיקה אינה מוגדרת באפליקציה.");
+      const response = await fetch(`${apiBase.replace(/\/$/, "")}/api/delete-account`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok || result?.success !== true) throw new Error(result?.error ?? "מחיקת החשבון נכשלה. נסו שוב מאוחר יותר.");
+      await supabase.auth.signOut();
+      router.replace("/login");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "מחיקת החשבון נכשלה. נסו שוב מאוחר יותר.");
+    } finally {
+      setBusy(false);
+      setDeleteAccountPhrase("");
+    }
+  };
   const exportCourses = async () => {
     setExporting(true); setMessage('');
     try {
@@ -179,6 +205,10 @@ export default function SettingsScreen() {
       )}
       <Disclosure title="החשבון שלי">
         <AccountDetails key={accountRevision} />
+        <Text style={ui.text}>מחיקת החשבון תסיר לצמיתות את פרטי החשבון, שנות הלימוד, הקורסים, המפגשים, ההערות וההיסטוריה.</Text>
+        <TouchableOpacity disabled={busy} onPress={() => setDeleteAccountConfirm(true)}>
+          <Text style={{ color: "#FCA5A5", textAlign: "right" }}>מחיקת החשבון שלי לצמיתות</Text>
+        </TouchableOpacity>
         <TouchableOpacity
           accessibilityRole="button"
           accessibilityLabel="התנתקות מהחשבון"
@@ -214,6 +244,26 @@ export default function SettingsScreen() {
         onConfirm={remove}
         onCancel={() => setConfirm(false)}
       />
+      <ConfirmModal
+        visible={deleteAccountConfirm}
+        title="מחיקת החשבון לצמיתות"
+        message="כל המידע ששמור בחשבון יימחק ולא ניתן יהיה לשחזר אותו. כדי להמשיך, הקלידו: מחיקת החשבון"
+        confirmLabel="מחיקת החשבון לצמיתות"
+        cancelLabel="ביטול"
+        isDestructive
+        confirmDisabled={deleteAccountPhrase.trim() !== "מחיקת החשבון" || busy}
+        onConfirm={() => { if (deleteAccountPhrase.trim() === "מחיקת החשבון") void deleteAccount(); }}
+        onCancel={() => { setDeleteAccountConfirm(false); setDeleteAccountPhrase(""); }}
+      >
+        <TextInput
+          accessibilityLabel="הקלידו מחיקת החשבון לאישור"
+          value={deleteAccountPhrase}
+          onChangeText={setDeleteAccountPhrase}
+          placeholder="מחיקת החשבון"
+          autoCapitalize="none"
+          style={{ width: "100%", backgroundColor: "#0B1724", color: "#FFFFFF", borderWidth: 1, borderColor: "#45617A", borderRadius: 10, padding: 12, textAlign: "right", marginBottom: 18 }}
+        />
+      </ConfirmModal>
     </Page>
   );
 }
