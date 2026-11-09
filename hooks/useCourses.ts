@@ -9,6 +9,13 @@ export function useCourses(academicYearId?: string | null) {
   const [loading, setLoading] = useState(true);
 
   const fetchCourses = async () => {
+    // null is the deliberate "no active year" state. Do not briefly load every
+    // course while the home screen is still resolving the selected year.
+    if (academicYearId === null) {
+      setCourses([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     let query = supabase.from('courses').select('*').order('order_index', { ascending: true });
     if (academicYearId) query = query.eq('academic_year_id', academicYearId);
@@ -68,12 +75,18 @@ export function useCourses(academicYearId?: string | null) {
   };
 
   const deleteCourse = async (courseId: string) => {
-    // Sessions will be deleted automatically due to CASCADE if FK is set, 
-    // but just in case or if no FK, we delete manually
-    await supabase.from('sessions').delete().eq('course_id', courseId);
-    const { error } = await supabase.from('courses').delete().eq('id', courseId);
+    const { error } = await supabase.rpc('delete_my_courses', { p_course_ids: [courseId] });
     if (error) return { error };
     setCourses(prev => prev.filter(c => c.id !== courseId));
+    return { success: true };
+  };
+
+  const deleteCourses = async (courseIds: string[]) => {
+    if (!courseIds.length) return { error: new Error('יש לבחור לפחות קורס אחד') };
+    const { error } = await supabase.rpc('delete_my_courses', { p_course_ids: courseIds });
+    if (error) return { error };
+    const selected = new Set(courseIds);
+    setCourses(prev => prev.filter(course => !selected.has(course.id)));
     return { success: true };
   };
 
@@ -162,7 +175,7 @@ export function useCourses(academicYearId?: string | null) {
   const deleteAllData = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('נדרשת כניסה מחדש');
-    const { error } = await supabase.from('courses').delete().eq('user_id', user.id);
+    const { error } = await supabase.rpc('delete_my_course_data');
     if (error) throw error;
     setCourses([]);
   };
@@ -286,6 +299,7 @@ export function useCourses(academicYearId?: string | null) {
     loading,
     createCourse,
     deleteCourse,
+    deleteCourses,
     updateCourse,
     reorderCourses,
     moveCourse,

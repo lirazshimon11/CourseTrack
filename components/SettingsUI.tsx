@@ -9,6 +9,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Colors } from "../constants/theme";
+import { BackButton } from "./BackButton";
 export const ui = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.background },
   body: { padding: 20, gap: 18, paddingBottom: 48 },
@@ -85,12 +86,7 @@ export function Page({
   return (
     <SafeAreaView style={ui.root}>
       <View style={ui.header}>
-        <TouchableOpacity
-          accessibilityRole="button"
-          onPress={() => router.canGoBack() ? router.back() : router.replace('/')}
-        >
-          <Text style={{ color: "#C4B5FD" }}>→ חזרה</Text>
-        </TouchableOpacity>
+        <BackButton onPress={() => router.canGoBack() ? router.back() : router.replace('/')} />
         <Text style={ui.title}>{title}</Text>
       </View>
       <ScrollView

@@ -5,7 +5,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius, FontSize } from '../../constants/theme';
 import { useSessions } from '../../hooks/useSessions';
 import { useCourses } from '../../hooks/useCourses';
@@ -15,6 +14,7 @@ import { Session, AttendanceStatus, SessionType, Course } from '../../types';
 import { groupSessionsByWeek } from '../../lib/dateUtils';
 import { Disclosure, ui } from '../../components/SettingsUI';
 import { CreateCourseModal } from '../../components/CreateCourseModal';
+import { BackButton } from '../../components/BackButton';
 
 type TabType = 'lecture' | 'exercise';
 type FilterType = 'all' | 'attended' | 'missed';
@@ -118,14 +118,7 @@ const CourseScreen = () => {
     <SafeAreaView style={styles.root} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => router.canGoBack() ? router.back() : router.replace('/')}
-          style={styles.backBtn}
-          hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-          activeOpacity={0.6}
-        >
-          <Ionicons name="arrow-forward" size={28} color={semesterColor} />
-        </TouchableOpacity>
+        <BackButton color={semesterColor} onPress={() => router.canGoBack() ? router.back() : router.replace('/')} />
         <TouchableOpacity
           style={styles.headerTitle}
           onPress={() => setIsCourseInfoVisible(true)}
@@ -255,19 +248,6 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
-  },
-  backBtn: {
-    width: 48,
-    height: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: -Spacing.xs,
-    zIndex: 100,
-  },
-  backIcon: {
-    fontSize: 28,
-    color: Colors.primaryLight,
-    fontFamily: 'Heebo_400Regular',
   },
   headerTitle: {
     flex: 1,

@@ -16,7 +16,7 @@ export default function SettingsScreen() {
   } | null>(null);
   const [institutionLoading, setInstitutionLoading] = useState(true);
   const [institutionError, setInstitutionError] = useState(false);
-  const { deleteAllData } = useCourses(academicYear?.id);
+  const { deleteAllData } = useCourses(academicYear ? academicYear.id : null);
   const [accountRevision, setAccountRevision] = useState(0);
   const [admin, setAdmin] = useState(false);
   const [confirm, setConfirm] = useState(false);
@@ -158,7 +158,7 @@ export default function SettingsScreen() {
       </View>
       <Disclosure title="מתקדם · איפוס נתונים">
         <Text style={ui.text}>
-          מחיקת כל הקורסים, המפגשים וההערות שלך. הפעולה אינה הפיכה.
+          מחיקת כל הקורסים, המפגשים וההערות שלך, כולל ההיסטוריה. הפעולה אינה הפיכה.
         </Text>
         <TouchableOpacity disabled={busy} onPress={() => setConfirm(true)}>
           <Text style={{ color: "#FCA5A5", textAlign: "right" }}>

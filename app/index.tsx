@@ -16,11 +16,14 @@ import { SuccessToast } from '../components/SuccessToast';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { JSReorderList } from '../components/JSReorderList';
 import { Semester, Course, SlotData } from '../types';
+import { SemesterCompletion } from '../components/SemesterCompletion';
+import { HomeActionsModal } from '../components/HomeActionsModal';
+import { BulkCourseDeleteModal } from '../components/BulkCourseDeleteModal';
 
 const HomeScreen = () => {
   const router = useRouter();
   const { academicYear, saveYear, loading: yearLoading } = useAcademicYear();
-  const { courses, loading, createCourse, deleteCourse, updateCourse, reorderCourses, moveCourse } = useCourses(academicYear?.id);
+  const { courses, loading, createCourse, deleteCourse, deleteCourses, updateCourse, reorderCourses, moveCourse, refetch } = useCourses(academicYear ? academicYear.id : null);
   const [isDragging, setIsDragging] = useState(false);
 
   const [showCreate, setShowCreate] = useState(false);
@@ -30,6 +33,12 @@ const HomeScreen = () => {
   const [menuPosition, setMenuPosition] = useState<{ x: number, y: number } | null>(null);
   const [toast, setToast] = useState<{ visible: boolean, message: string }>({ visible: false, message: '' });
   const [deleteConfirm, setDeleteConfirm] = useState<{ visible: boolean, courseId: string }>({ visible: false, courseId: '' });
+  const [showActions, setShowActions] = useState(false);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedCourseIds, setSelectedCourseIds] = useState<string[]>([]);
+  const [showBulkDelete, setShowBulkDelete] = useState(false);
+  const [deletingCourses, setDeletingCourses] = useState(false);
+  const [bulkDeleteError, setBulkDeleteError] = useState('');
 
   const handleSaveCourse = async (
     name: string,
@@ -80,33 +89,64 @@ const HomeScreen = () => {
     }
   };
 
+  const toggleCourse = (courseId: string) => {
+    setSelectedCourseIds(current => current.includes(courseId) ? current.filter(id => id !== courseId) : [...current, courseId]);
+  };
+  const leaveSelectionMode = () => { setSelectionMode(false); setSelectedCourseIds([]); };
+  const handleBulkDelete = async () => {
+    setBulkDeleteError('');
+    setDeletingCourses(true);
+    const result = await deleteCourses(selectedCourseIds);
+    setDeletingCourses(false);
+    if (result.success) {
+      setShowBulkDelete(false);
+      const count = selectedCourseIds.length;
+      leaveSelectionMode();
+      setToast({ visible: true, message: count === 1 ? 'הקורס נמחק לצמיתות' : `${count} קורסים נמחקו לצמיתות` });
+    } else {
+      setBulkDeleteError('לא ניתן למחוק את הקורסים כרגע. הנתונים נשארו ללא שינוי. נסו שוב.');
+    }
+  };
+
   const yearLabel = academicYear?.label ?? 'הגדר שנה אקדמית';
 
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
-      <TouchableOpacity accessibilityRole="button" onPress={()=>router.push('/import')} style={{marginHorizontal:20,marginTop:12,padding:12,backgroundColor:'#281D46',borderRadius:12}}><Text style={{color:'#DDD6FE',fontFamily:'Heebo_600SemiBold',textAlign:'center'}}>＋ ייבוא מערכת שעות מ־PDF</Text></TouchableOpacity>
-      {/* Top bar */}
+      <SemesterCompletion onComplete={refetch} />
       <View style={styles.topBar}>
-        <TouchableOpacity
-          style={styles.yearBtn}
-          onPress={() => router.push('/calendars')}
-        >
-          <Text style={styles.yearBtnIcon}>🎓</Text>
-          <Text style={styles.yearBtnText}>{academicYear ? `שנה ${yearLabel}` : 'הגדרת סמסטר'}</Text>
-        </TouchableOpacity>
-
+        <Text style={styles.appName}>CourseTrack</Text>
         <TouchableOpacity style={styles.settingsBtn} onPress={() => router.push('/settings')}>
           <Text style={styles.settingsIcon}>⚙️</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Title */}
       <View style={styles.titleRow}>
         <Text style={styles.title}>הקורסים שלי</Text>
         <Text style={styles.subtitle}>
           {!academicYear ? 'בואו נכין את סביבת הלימודים שלך' : courses.length === 0 ? 'הסמסטר מוכן. עכשיו מוסיפים קורס ראשון' : `${courses.length} קורסים · ההתקדמות שלך מתחילה כאן`}
         </Text>
       </View>
+
+      <TouchableOpacity accessibilityRole="button" style={styles.termCard} onPress={() => router.push('/calendars')}>
+        <View style={styles.termText}>
+          <Text style={styles.termLabel}>ההקשר האקדמי שלך</Text>
+          <Text style={styles.termValue}>{academicYear ? `שנה ${yearLabel}` : 'הגדרת שנה וסמסטר'}</Text>
+        </View>
+        <Text style={styles.termArrow}>‹</Text>
+      </TouchableOpacity>
+
+      <View style={styles.secondaryActions}>
+        <TouchableOpacity accessibilityRole="button" style={styles.secondaryButton} onPress={() => router.push('/history')}>
+          <Text style={styles.secondaryIcon}>◷</Text>
+          <Text style={styles.secondaryText}>היסטוריה</Text>
+        </TouchableOpacity>
+      </View>
+
+      {selectionMode && <View style={styles.selectionToolbar}>
+        <Text style={styles.selectionText}>{selectedCourseIds.length} קורסים נבחרו</Text>
+        <TouchableOpacity accessibilityRole="button" onPress={leaveSelectionMode}><Text style={styles.cancelSelection}>ביטול</Text></TouchableOpacity>
+        <TouchableOpacity accessibilityRole="button" disabled={!selectedCourseIds.length} onPress={() => setShowBulkDelete(true)}><Text style={[styles.deleteSelection, !selectedCourseIds.length && styles.disabledText]}>מחיקת הנבחרים</Text></TouchableOpacity>
+      </View>}
 
       {/* Course list */}
       {loading || yearLoading ? (
@@ -138,6 +178,9 @@ const HomeScreen = () => {
                 onPress={() => router.push(`/course/${item.id}`)}
                 onLongPress={handleLongPress}
                 dragTrigger={dragTrigger}
+                selectionMode={selectionMode}
+                selected={selectedCourseIds.includes(item.id)}
+                onToggle={() => toggleCourse(item.id)}
               />
             )}
           />
@@ -145,13 +188,7 @@ const HomeScreen = () => {
       )}
 
       {/* FAB */}
-      <TouchableOpacity style={styles.fab} onPress={() => {
-        if (!academicYear) {
-          setShowYearModal(true);
-        } else {
-          setShowCreate(true);
-        }
-      }}>
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel="פעולות קורסים" style={styles.fab} onPress={() => setShowActions(true)}>
         <Text style={styles.fabText}>+</Text>
       </TouchableOpacity>
 
@@ -163,6 +200,22 @@ const HomeScreen = () => {
         courseToEdit={courseToEdit}
         onClose={() => { setShowCreate(false); setCourseToEdit(null); }}
         onSave={handleSaveCourse}
+      />
+      <HomeActionsModal
+        visible={showActions}
+        canDelete={courses.length > 0}
+        onClose={() => setShowActions(false)}
+        onCreate={() => academicYear ? setShowCreate(true) : setShowYearModal(true)}
+        onImport={() => router.push('/import')}
+        onDelete={() => { setSelectionMode(true); setSelectedCourseIds([]); }}
+      />
+      <BulkCourseDeleteModal
+        visible={showBulkDelete}
+        count={selectedCourseIds.length}
+        busy={deletingCourses}
+        error={bulkDeleteError}
+        onCancel={() => { setShowBulkDelete(false); setBulkDeleteError(''); }}
+        onConfirm={handleBulkDelete}
       />
       <AcademicYearModal
         visible={showYearModal}
@@ -208,39 +261,25 @@ const styles = StyleSheet.create({
   stepLabel: { color: Colors.primaryLight, fontFamily: 'Heebo_600SemiBold', fontSize: 13 },
   startButton: { backgroundColor: Colors.primary, padding: 16, borderRadius: 14, marginTop: 16, minWidth: 230, alignItems: 'center' },
   startButtonText: { color: Colors.text, fontFamily: 'Heebo_600SemiBold', fontSize: 15 },
-  root: { flex: 1, backgroundColor: Colors.background, paddingTop: 22 },
+  root: { flex: 1, backgroundColor: Colors.background, paddingTop: Spacing.sm },
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderTopWidth: 0,
-    borderBottomWidth: 0,
+    paddingVertical: Spacing.xs,
   },
-  yearBtn: {
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    gap: Spacing.xs,
-    backgroundColor: Colors.card,
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
-    borderRadius: Radius.full,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-  },
-  yearBtnIcon: { fontSize: 14 },
-  yearBtnText: {
-    fontSize: FontSize.sm,
+  appName: {
+    fontSize: FontSize.md,
     fontFamily: 'Heebo_600SemiBold',
-    color: Colors.primaryLight,
+    color: Colors.textMuted,
   },
-  settingsBtn: { padding: Spacing.xs },
+  settingsBtn: { padding: Spacing.sm },
   settingsIcon: { fontSize: 22 },
   titleRow: {
     paddingHorizontal: Spacing.md,
-    paddingBottom: Spacing.md,
-    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.sm,
+    paddingTop: Spacing.xs,
     alignItems: 'flex-start', // Use flex-start but in RTL this will be right
   },
   title: {
@@ -256,6 +295,46 @@ const styles = StyleSheet.create({
     textAlign: 'right',
     marginTop: 2,
   },
+  termCard: {
+    marginHorizontal: Spacing.md,
+    marginTop: Spacing.xs,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    borderRadius: Radius.lg,
+    backgroundColor: Colors.card,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  termText: { gap: 2, flex: 1 },
+  termLabel: { fontFamily: 'Heebo_400Regular', fontSize: FontSize.sm, color: Colors.textMuted, textAlign: 'right' },
+  termValue: { fontFamily: 'Heebo_600SemiBold', fontSize: FontSize.md, color: Colors.text, textAlign: 'right' },
+  termArrow: { fontFamily: 'Heebo_400Regular', fontSize: 28, color: Colors.primaryLight, marginRight: Spacing.sm },
+  secondaryActions: {
+    flexDirection: 'row-reverse',
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.xs,
+  },
+  secondaryButton: {
+    flex: 1,
+    flexDirection: 'row-reverse',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.md,
+    backgroundColor: '#281D46',
+  },
+  secondaryIcon: { fontSize: 17, color: '#DDD6FE' },
+  secondaryText: { fontFamily: 'Heebo_600SemiBold', fontSize: FontSize.sm, color: '#DDD6FE' },
+  selectionToolbar: { flexDirection: 'row-reverse', alignItems: 'center', gap: Spacing.sm, marginHorizontal: Spacing.md, marginTop: Spacing.sm, padding: Spacing.sm, borderRadius: Radius.md, backgroundColor: '#2B1B30' },
+  selectionText: { flex: 1, color: Colors.text, fontFamily: 'Heebo_600SemiBold', textAlign: 'right' },
+  cancelSelection: { color: Colors.textSecondary, fontFamily: 'Heebo_600SemiBold', padding: Spacing.xs },
+  deleteSelection: { color: '#FCA5A5', fontFamily: 'Heebo_700Bold', padding: Spacing.xs },
+  disabledText: { opacity: 0.4 },
   list: { paddingTop: Spacing.xs, paddingBottom: 100 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   emptyState: {

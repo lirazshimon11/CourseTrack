@@ -9,15 +9,18 @@ export function useAcademicYear() {
 
   const fetchYear = useCallback(async (foreground=true) => {
     if(foreground)setLoading(true);
-    const { data: profile } = await supabase.from('student_profiles').select('active_academic_year_id').maybeSingle();
-    let query = supabase
+    const [profileResult, yearsResult] = await Promise.all([
+      supabase.from('student_profiles').select('active_academic_year_id').maybeSingle(),
+      supabase
       .from('academic_years')
       .select('*')
-      .order('created_at', { ascending: false })
-      .limit(1);
-    if (profile?.active_academic_year_id) query = query.eq('id', profile.active_academic_year_id);
-    const { data, error } = await query.maybeSingle();
-    if (!error) setAcademicYear(data);
+      .order('created_at', { ascending: false }),
+    ]);
+    if (!yearsResult.error) {
+      const years = yearsResult.data as AcademicYear[];
+      const activeId = profileResult.data?.active_academic_year_id;
+      setAcademicYear(activeId ? years.find((year) => year.id === activeId) ?? null : years[0] ?? null);
+    }
     setLoading(false);
   }, []);
 

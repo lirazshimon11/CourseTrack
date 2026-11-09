@@ -9,7 +9,7 @@ import { Action, Page, ui } from '../components/SettingsUI';
 export default function TimetableScreen() {
   const router = useRouter();
   const { academicYear, loading: yearLoading } = useAcademicYear();
-  const { courses, loading } = useCourses(academicYear?.id);
+  const { courses, loading } = useCourses(academicYear ? academicYear.id : null);
 
   return (
     <Page title="יצירת מערכת שעות">

@@ -28,6 +28,7 @@ import { AcademicYear } from "../types";
 import { AcademicYearModal } from "../components/AcademicYearModal";
 import { Badge, Disclosure, CalendarSummary } from "./SettingsUI";
 import { ConfirmModal } from "../components/ConfirmModal";
+import { BackButton } from "../components/BackButton";
 
 function Button({
   title,
@@ -336,23 +337,20 @@ export default function CalendarWorkspace({
       <View style={s.center}>
         <Text style={s.text}>{loadError}</Text>
         <Button title="ניסיון נוסף" onPress={reload} />
-        <Button title="חזרה" onPress={() => router.canGoBack() ? router.back() : router.replace("/")} />
+        <BackButton onPress={() => router.canGoBack() ? router.back() : router.replace("/")} />
       </View>
     );
   if (management && !authorized)
     return (
       <View style={s.center}>
         <Text style={s.title}>מרכז הניהול זמין למנהלים בלבד</Text>
-        <Button
-          title="חזרה להגדרות"
-          onPress={() => router.replace("/settings")}
-        />
+        <BackButton label="חזרה להגדרות" onPress={() => router.replace("/settings")} />
       </View>
     );
   return (
     <SafeAreaView style={s.root}>
       <View style={s.header}>
-        <Button title={management ? "→ להגדרות האישיות" : "→ חזרה"} onPress={() => management ? router.replace("/settings") : router.canGoBack() ? router.back() : router.replace("/")} />
+        <BackButton label={management ? "הגדרות אישיות" : "חזרה"} onPress={() => management ? router.replace("/settings") : router.canGoBack() ? router.back() : router.replace("/")} />
         <Text style={s.title}>
           {management ? "מרכז ניהול" : "הלימודים שלי"}
         </Text>

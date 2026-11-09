@@ -1,4 +1,5 @@
 import {COURSE_COLORS,courseColor} from '../constants/courseColors';
+import { CourseColorPicker } from './CourseColorPicker';
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, Modal, TouchableOpacity,
@@ -115,7 +116,7 @@ export const CreateCourseModal = ({ visible, academicYear, courseToEdit, readOnl
               <TextInput 
                 style={[styles.input, readOnly && { opacity: 0.8 }]} 
                 placeholder="לדוגמה: מבוא למדעי המחשב" 
-                placeholderTextColor={Colors.text}
+                placeholderTextColor="rgba(148, 163, 184, 0.55)"
                 value={name} 
                 onChangeText={setName}
                 editable={!readOnly}
@@ -123,19 +124,7 @@ export const CreateCourseModal = ({ visible, academicYear, courseToEdit, readOnl
             </View>
 
             <View style={styles.section}>
-              <Text style={styles.label}>צבע הקורס</Text>
-              <View style={styles.colorRow}>
-                {COURSE_COLORS.map((c) => (
-                  <TouchableOpacity 
-                    key={c} 
-                    style={[styles.colorCircle, { backgroundColor: c }, color === c && styles.colorCircleActive]} 
-                    onPress={() => !readOnly && setColor(c)}
-                    disabled={readOnly}
-                  >
-                    {color === c && <View style={styles.colorInnerCircle} />}
-                  </TouchableOpacity>
-                ))}
-              </View>
+              <CourseColorPicker color={color} onChange={setColor} disabled={readOnly} />
             </View>
 
             <View style={styles.section}>
@@ -278,10 +267,6 @@ const styles = StyleSheet.create({
   label: { fontSize: FontSize.md, fontFamily: 'Heebo_600SemiBold', color: Colors.textSecondary, marginBottom: Spacing.sm, textAlign: 'right' },
   input: { backgroundColor: Colors.card, borderRadius: Radius.md, padding: Spacing.md, color: Colors.text, fontSize: FontSize.md, fontFamily: 'Heebo_400Regular', borderWidth: 1, borderColor: Colors.border, textAlign: 'right' },
   row: { flexDirection: 'row', gap: Spacing.sm },
-  colorRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.md, justifyContent: 'center' },
-  colorCircle: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  colorCircleActive: { transform: [{ scale: 1.1 }], borderWidth: 2, borderColor: '#fff' },
-  colorInnerCircle: { width: 12, height: 12, borderRadius: 6, backgroundColor: '#fff' },
   rowBetween: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.sm },
   chip: { flex: 1, paddingVertical: Spacing.sm, borderRadius: Radius.md, backgroundColor: Colors.card, alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
   chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },

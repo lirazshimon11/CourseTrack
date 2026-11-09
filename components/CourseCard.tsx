@@ -8,9 +8,12 @@ interface CourseCardProps {
   onPress: () => void;
   onLongPress: (course: Course, x: number, y: number) => void;
   dragTrigger: () => void;
+  selectionMode?: boolean;
+  selected?: boolean;
+  onToggle?: () => void;
 }
 
-export function CourseCard({ course, onPress, onLongPress, dragTrigger }: CourseCardProps) {
+export function CourseCard({ course, onPress, onLongPress, dragTrigger, selectionMode = false, selected = false, onToggle }: CourseCardProps) {
   const semesterColor = course.color || '#3B82F6';
 
   return (
@@ -18,15 +21,19 @@ export function CourseCard({ course, onPress, onLongPress, dragTrigger }: Course
       <View style={styles.card}>
         <TouchableOpacity
           style={[styles.accentBar, { backgroundColor: semesterColor }]}
-          onLongPress={dragTrigger}
+          onLongPress={selectionMode ? undefined : dragTrigger}
+          disabled={selectionMode}
           delayLongPress={100}
         />
         <TouchableOpacity
           activeOpacity={0.7}
           delayPressIn={100}
-          onPress={onPress}
+          accessibilityLabel={selectionMode ? `${selected ? 'ביטול בחירה של' : 'בחירה של'} ${course.name}` : course.name}
+          accessibilityRole={selectionMode ? 'checkbox' : 'button'}
+          accessibilityState={{ checked: selectionMode ? selected : undefined }}
+          onPress={selectionMode ? onToggle : onPress}
           onLongPress={(e) => {
-            onLongPress(course, e.nativeEvent.pageX, e.nativeEvent.pageY);
+            if (!selectionMode) onLongPress(course, e.nativeEvent.pageX, e.nativeEvent.pageY);
           }}
           style={styles.cardBody}
         >
@@ -35,6 +42,7 @@ export function CourseCard({ course, onPress, onLongPress, dragTrigger }: Course
               <Text style={[styles.semesterText, { color: semesterColor }]}>סמסטר {course.semester}'</Text>
             </View>
             <Text style={styles.name}>{course.name}</Text>
+            {selectionMode && <View style={[styles.selection, selected && styles.selectionActive]}><Text style={styles.selectionMark}>{selected ? '✓' : ''}</Text></View>}
           </View>
         </TouchableOpacity>
       </View>
@@ -90,4 +98,7 @@ const styles = StyleSheet.create({
     fontSize: FontSize.xs,
     fontFamily: 'Heebo_500Medium',
   },
+  selection: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: Colors.textMuted, alignItems: 'center', justifyContent: 'center' },
+  selectionActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  selectionMark: { color: '#fff', fontFamily: 'Heebo_700Bold' },
 });
