@@ -25,7 +25,7 @@ import { prepareLocalPdfReader, readLocalPdf } from "../lib/localPdf";
 import { profileFields } from "../lib/calendars";
 import { supabase } from "../lib/supabase";
 import { Semester } from "../types";
-import { clearImportDraft, loadImportDraft, saveImportDraft } from "../lib/importDraft";
+import { clearImportDraft, clearImportRecovery, loadImportDraft, saveImportDraft } from "../lib/importDraft";
 
 function PdfFileButton({ disabled, onFile }: { disabled: boolean; onFile: (file: File) => void }) {
   const host = useRef<any>(null);
@@ -72,7 +72,10 @@ export default function ImportScreen() {
   const [done, setDone] = useState(false);
   useEffect(() => {
     const draft = loadImportDraft();
-    if (draft) setPreview(draft);
+    if (draft) {
+      setPreview(draft);
+      clearImportRecovery();
+    }
     // Load the parser before opening the picker. Mobile PWAs are much more
     // reliable when a file selection does not also start a module download.
     if (Platform.OS === 'web') void prepareLocalPdfReader().catch(() => undefined);

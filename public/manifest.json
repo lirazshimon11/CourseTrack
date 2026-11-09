@@ -1,6 +1,8 @@
 {
   "short_name": "CourseTrack",
   "name": "CourseTrack - Manage Your Learning",
+  "id": "/",
+  "scope": "/",
   "icons": [
     {
       "src": "icon-192.png?v=3",

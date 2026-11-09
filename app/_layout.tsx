@@ -12,6 +12,7 @@ import {
 } from '@expo-google-fonts/heebo';
 import { Colors } from '../constants/theme';
 import { AuthGate } from '../components/AuthGate';
+import { RouteRestorer } from '../components/RouteRestorer';
 
 // Force RTL for Hebrew
 I18nManager.forceRTL(true);
@@ -69,6 +70,7 @@ export default function RootLayout() {
       <View style={styles.root}>
         <View style={styles.container}>
           <StatusBar style="light" backgroundColor={Colors.background} />
+          <RouteRestorer />
           <AuthGate><Stack
             screenOptions={{
               headerShown: false,

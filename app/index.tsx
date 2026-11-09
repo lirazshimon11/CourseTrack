@@ -4,7 +4,7 @@ import {
   Alert, ActivityIndicator, ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { Redirect, useRouter } from 'expo-router';
 import { Colors, Spacing, Radius, FontSize } from '../constants/theme';
 import { useCourses } from '../hooks/useCourses';
 import { useAcademicYear } from '../hooks/useAcademicYear';
@@ -19,6 +19,7 @@ import { Semester, Course, SlotData } from '../types';
 import { SemesterCompletion } from '../components/SemesterCompletion';
 import { HomeActionsModal } from '../components/HomeActionsModal';
 import { BulkCourseDeleteModal } from '../components/BulkCourseDeleteModal';
+import { IMPORT_RECOVERY_KEY } from '../lib/importDraft';
 
 const HomeScreen = () => {
   const router = useRouter();
@@ -39,6 +40,9 @@ const HomeScreen = () => {
   const [showBulkDelete, setShowBulkDelete] = useState(false);
   const [deletingCourses, setDeletingCourses] = useState(false);
   const [bulkDeleteError, setBulkDeleteError] = useState('');
+  let recoverImport = false;
+  try { recoverImport = typeof window !== 'undefined' && window.localStorage.getItem(IMPORT_RECOVERY_KEY) === '1'; } catch { /* Storage is optional. */ }
+  if (recoverImport) return <Redirect href="/import" />;
 
   const handleSaveCourse = async (
     name: string,
