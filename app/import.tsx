@@ -2,7 +2,7 @@ import { CourseToggle } from "../components/CourseToggle";
 import { courseColor } from "../constants/courseColors";
 import { CourseColorPicker } from "../components/CourseColorPicker";
 import { CalendarRecovery } from "../components/CalendarRecovery";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Platform,
   Text,
@@ -25,6 +25,7 @@ import { readLocalPdf } from "../lib/localPdf";
 import { profileFields } from "../lib/calendars";
 import { supabase } from "../lib/supabase";
 import { Semester } from "../types";
+import { clearImportDraft, loadImportDraft, saveImportDraft, setPendingImport } from "../lib/importDraft";
 
 export default function ImportScreen() {
   const router = useRouter();
@@ -41,12 +42,20 @@ export default function ImportScreen() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [done, setDone] = useState(false);
+  useEffect(() => {
+    setPendingImport(false);
+    const draft = loadImportDraft();
+    if (draft) setPreview(draft);
+  }, []);
   const prepare = (text: string) => {
     const result = parseSemesterText(text);
-    setPreview({
+    const nextPreview = {
       ...result,
       courses: result.courses.map((c, i) => ({ ...c, color: courseColor(i) })),
-    });
+    };
+    saveImportDraft(nextPreview);
+    setPendingImport(false);
+    setPreview(nextPreview);
 
     setExcluded([]);
     setEdited({});
@@ -62,9 +71,12 @@ export default function ImportScreen() {
     const input = document.createElement("input");
     input.type = "file";
     input.accept = ".pdf,application/pdf";
+    input.style.display = 'none';
+    document.body.appendChild(input);
     input.onchange = async () => {
       const file = input.files?.[0];
-      if (!file) return;
+      input.remove();
+      if (!file) { setPendingImport(false); return; }
       setBusy(true);
       setMessage("");
       try {
@@ -78,6 +90,8 @@ export default function ImportScreen() {
         input.value = "";
       }
     };
+    input.oncancel = () => { input.remove(); setPendingImport(false); };
+    setPendingImport(true);
     input.click();
   };
   const editSlot = (
@@ -144,6 +158,8 @@ export default function ImportScreen() {
         return;
       }
       setDone(true);
+      clearImportDraft();
+      setPendingImport(false);
       setMessage(
         `נוספו ${data.added} קורסים. עודכנו ${data.updated ?? 0} קורסים. ${data.skipped ? `${data.skipped} קורסים כבר יובאו ונשמרו ללא שינוי.` : ""}`,
       );
@@ -260,7 +276,7 @@ export default function ImportScreen() {
             secondary
             disabled={busy}
             title="בחירת קובץ או פלט אחר"
-            onPress={() => setPreview(null)}
+            onPress={() => { setPreview(null); clearImportDraft(); }}
           />
           {preview.warnings.length > 0 && (
             <View style={[ui.card, { borderColor: "#B78B32" }]}>

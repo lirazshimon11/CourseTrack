@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   Alert, ActivityIndicator, ScrollView,
@@ -19,6 +19,7 @@ import { Semester, Course, SlotData } from '../types';
 import { SemesterCompletion } from '../components/SemesterCompletion';
 import { HomeActionsModal } from '../components/HomeActionsModal';
 import { BulkCourseDeleteModal } from '../components/BulkCourseDeleteModal';
+import { PENDING_IMPORT_KEY } from '../lib/importDraft';
 
 const HomeScreen = () => {
   const router = useRouter();
@@ -39,6 +40,14 @@ const HomeScreen = () => {
   const [showBulkDelete, setShowBulkDelete] = useState(false);
   const [deletingCourses, setDeletingCourses] = useState(false);
   const [bulkDeleteError, setBulkDeleteError] = useState('');
+
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined' && window.sessionStorage.getItem(PENDING_IMPORT_KEY) === '1') {
+        router.replace('/import');
+      }
+    } catch { /* The import screen remains usable when session storage is unavailable. */ }
+  }, [router]);
 
   const handleSaveCourse = async (
     name: string,
