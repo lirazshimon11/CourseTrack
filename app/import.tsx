@@ -27,6 +27,7 @@ import { supabase } from "../lib/supabase";
 import { Semester } from "../types";
 import { ImportDiagnostics } from '../components/ImportDiagnostics';
 import { recordDiagnostic } from '../lib/clientDiagnostics';
+import { beginImportHandoff, cancelImportHandoff, completeImportHandoff, IMPORT_FLOW_EVENT, takeImportHandoff } from '../lib/importHandoff';
 
 function PdfFileButton({ disabled, onFile }: { disabled: boolean; onFile: (file: File) => void }) {
   const host = useRef<any>(null);
@@ -56,6 +57,7 @@ function PdfFileButton({ disabled, onFile }: { disabled: boolean; onFile: (file:
       // Back event on some devices. Add an identical URL history entry first,
       // so that Back consumes this guard and keeps the user on /import.
       window.history.pushState({ ...(window.history.state ?? {}), courseTrackPdfPicker: true }, '', window.location.href);
+      beginImportHandoff();
       recordDiagnostic('pdf-input-click; history-guard-added');
     };
     input.addEventListener('click', click);
@@ -87,9 +89,22 @@ export default function ImportScreen() {
   const [message, setMessage] = useState("");
   const [done, setDone] = useState(false);
   useEffect(() => {
+    const receiveHandoff = () => {
+      const handoff = takeImportHandoff();
+      if (handoff) {
+        recordDiagnostic('import-handoff-received', `courses=${handoff.courses.length}`);
+        setPreview(handoff);
+        setExcluded([]);
+        setEdited({});
+        setDone(false);
+      }
+    };
+    receiveHandoff();
+    if (typeof window !== 'undefined') window.addEventListener(IMPORT_FLOW_EVENT, receiveHandoff);
     // Load the parser before opening the picker. Mobile PWAs are much more
     // reliable when a file selection does not also start a module download.
     if (Platform.OS === 'web') void prepareLocalPdfReader().catch(() => undefined);
+    return () => { if (typeof window !== 'undefined') window.removeEventListener(IMPORT_FLOW_EVENT, receiveHandoff); };
   }, []);
   const prepare = (text: string) => {
     const result = parseSemesterText(text);
@@ -114,6 +129,7 @@ export default function ImportScreen() {
     try {
       const result = parseSemesterText(await readLocalPdf(file));
       const nextPreview = { ...result, courses: result.courses.map((course, index) => ({ ...course, color: courseColor(index) })) };
+      completeImportHandoff(nextPreview);
       setPreview(nextPreview);
       setExcluded([]);
       setEdited({});
@@ -121,6 +137,7 @@ export default function ImportScreen() {
       setPaste("");
       recordDiagnostic('pdf-read-success', `courses=${nextPreview.courses.length}`);
     } catch {
+      cancelImportHandoff();
       recordDiagnostic('pdf-read-failed');
       setMessage("לא ניתן לקרוא את הקובץ. יש לבחור PDF עם טקסט, ללא סיסמה ועד 10MB. אפשר גם להדביק את פלט החילוץ.");
     } finally {

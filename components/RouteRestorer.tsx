@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { usePathname, useRouter } from 'expo-router';
 import { recordDiagnostic } from '../lib/clientDiagnostics';
+import { importHandoffActive } from '../lib/importHandoff';
 
 const LAST_ROUTE = 'coursetrack:last-route:v2';
 const ROUTE_TTL_MS = 10 * 60 * 1000;
@@ -36,6 +37,12 @@ export function RouteRestorer() {
   useEffect(() => {
     if (restored.current || pathname !== '/' || typeof window === 'undefined') return;
     try {
+      if (importHandoffActive()) {
+        restored.current = true;
+        recordDiagnostic('import-handoff-route-restore');
+        router.replace('/import');
+        return;
+      }
       const route = initialRoute.current;
       if (route && route !== '/') {
         recordDiagnostic('route-restore', `to=${route}`);
