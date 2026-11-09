@@ -25,8 +25,6 @@ import { prepareLocalPdfReader, readLocalPdf } from "../lib/localPdf";
 import { profileFields } from "../lib/calendars";
 import { supabase } from "../lib/supabase";
 import { Semester } from "../types";
-import { ImportDiagnostics } from '../components/ImportDiagnostics';
-import { recordDiagnostic } from '../lib/clientDiagnostics';
 import { beginImportHandoff, cancelImportHandoff, completeImportHandoff, IMPORT_FLOW_EVENT, takeImportHandoff } from '../lib/importHandoff';
 
 let persistentPdfHandler: ((file: File) => void) | null = null;
@@ -46,7 +44,6 @@ function persistentPdfInput() {
   if (!persistentPdfInputBound) {
     input.addEventListener('change', () => {
       const file = input!.files?.[0];
-      recordDiagnostic('pdf-input-change', file ? `name=${file.name}; size=${file.size}` : 'no-file');
       input!.value = '';
       if (file) persistentPdfHandler?.(file);
     });
@@ -74,7 +71,6 @@ function PdfFileButton({ disabled, onFile }: { disabled: boolean; onFile: (file:
     lastOpen.current = Date.now();
     const input = persistentPdfInput() as HTMLInputElement & { showPicker?: () => void };
     beginImportHandoff();
-    recordDiagnostic('pdf-picker-open');
     try {
       // showPicker is the most reliable path in current Android Chromium;
       // click remains the compatible fallback for older browsers.
@@ -111,7 +107,6 @@ export default function ImportScreen() {
     const receiveHandoff = () => {
       const handoff = takeImportHandoff();
       if (handoff) {
-        recordDiagnostic('import-handoff-received', `courses=${handoff.courses.length}`);
         setPreview(handoff);
         setExcluded([]);
         setEdited({});
@@ -142,7 +137,6 @@ export default function ImportScreen() {
   const readPdf = useCallback(async (file: File) => {
     if (readingPdf.current) return;
     readingPdf.current = true;
-    recordDiagnostic('pdf-read-start', `name=${file.name}; size=${file.size}`);
     setBusy(true);
     setMessage("");
     try {
@@ -154,10 +148,8 @@ export default function ImportScreen() {
       setEdited({});
       setDone(false);
       setPaste("");
-      recordDiagnostic('pdf-read-success', `courses=${nextPreview.courses.length}`);
     } catch {
       cancelImportHandoff();
-      recordDiagnostic('pdf-read-failed');
       setMessage("לא ניתן לקרוא את הקובץ. יש לבחור PDF עם טקסט, ללא סיסמה ועד 10MB. אפשר גם להדביק את פלט החילוץ.");
     } finally {
       readingPdf.current = false;
@@ -246,7 +238,6 @@ export default function ImportScreen() {
   return (
     <Page title="ייבוא מערכת שעות">
       <Badge text="עיבוד מקומי · ללא AI" />
-      <ImportDiagnostics />
       <Text style={ui.text}>
         הקובץ נשאר במכשיר. רק הקורסים והפרטים האקדמיים שתאשרו יישמרו בחשבון.
         החילוץ מותאם למבנה מערכת השעות של HIT.

@@ -1,6 +1,5 @@
 import React, { useEffect, useRef } from 'react';
 import { usePathname, useRouter } from 'expo-router';
-import { recordDiagnostic } from '../lib/clientDiagnostics';
 import { importHandoffActive } from '../lib/importHandoff';
 
 const LAST_ROUTE = 'coursetrack:last-route:v2';
@@ -34,8 +33,6 @@ export function RouteRestorer() {
 
   if (initialRoute.current === null && typeof window !== 'undefined') initialRoute.current = readSavedRoute();
 
-  useEffect(() => { recordDiagnostic('app-mounted', `path=${pathname}; saved=${initialRoute.current ?? 'none'}`); }, []);
-
   useEffect(() => {
     if (pathname !== '/' || typeof window === 'undefined') {
       if (pathname !== '/') canRestoreInitialRoute.current = false;
@@ -43,7 +40,6 @@ export function RouteRestorer() {
     }
     try {
       if (importHandoffActive()) {
-        recordDiagnostic('import-handoff-route-restore');
         router.replace('/import');
         return;
       }
@@ -53,7 +49,6 @@ export function RouteRestorer() {
 
       const route = initialRoute.current;
       if (route && route !== '/') {
-        recordDiagnostic('route-restore', `to=${route}`);
         window.localStorage.removeItem(LAST_ROUTE);
         router.replace(route);
       }
@@ -63,23 +58,9 @@ export function RouteRestorer() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
-      recordDiagnostic('route-changed', pathname);
       window.localStorage.setItem(LAST_ROUTE, JSON.stringify({ path: pathname, savedAt: Date.now() } satisfies SavedRoute));
     } catch { /* Storage may be disabled in private browsing. */ }
   }, [pathname]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const visibility = () => recordDiagnostic('visibility', document.visibilityState);
-    const pageHide = () => recordDiagnostic('pagehide');
-    const pageShow = (event: PageTransitionEvent) => recordDiagnostic('pageshow', `persisted=${event.persisted}`);
-    const popState = () => recordDiagnostic('popstate', window.location.pathname);
-    document.addEventListener('visibilitychange', visibility);
-    window.addEventListener('pagehide', pageHide);
-    window.addEventListener('pageshow', pageShow);
-    window.addEventListener('popstate', popState);
-    return () => { document.removeEventListener('visibilitychange', visibility); window.removeEventListener('pagehide', pageHide); window.removeEventListener('pageshow', pageShow); window.removeEventListener('popstate', popState); };
-  }, []);
 
   return null;
 }
