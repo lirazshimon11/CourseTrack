@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, Pressable, ScrollView } from 'react-native';
 import { Colors, Spacing, Radius, FontSize } from '../constants/theme';
 
 interface Props {
@@ -21,7 +21,8 @@ export const ConfirmModal = ({
   return (
     <Modal visible={visible} transparent animationType="fade">
       <Pressable style={styles.overlay} onPress={onCancel}>
-        <Pressable style={styles.card}>
+        <Pressable style={styles.card} onPress={() => {}}>
+          <ScrollView keyboardShouldPersistTaps="always" contentContainerStyle={styles.content}>
           <Text style={styles.title}>{title}</Text>
           <Text style={styles.message}>{message}</Text>
           {children}
@@ -39,6 +40,7 @@ export const ConfirmModal = ({
               <Text style={styles.cancelBtnText}>{cancelLabel}</Text>
             </TouchableOpacity>
           </View>
+          </ScrollView>
         </Pressable>
       </Pressable>
     </Modal>
@@ -67,6 +69,7 @@ const styles = StyleSheet.create({
     shadowRadius: 20,
     elevation: 10,
   },
+  content: { alignItems: 'center' },
   title: {
     fontSize: FontSize.xl,
     fontFamily: 'Heebo_700Bold',
