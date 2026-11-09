@@ -41,7 +41,8 @@ export default function SettingsScreen() {
       const result = await response.json().catch(() => null);
       if (!response.ok || result?.success !== true) throw new Error(result?.error ?? "מחיקת החשבון נכשלה. נסו שוב מאוחר יותר.");
       await supabase.auth.signOut();
-      router.replace("/login");
+      // Authentication is shown by AuthGate on the root route; there is no /login page.
+      router.replace("/");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "מחיקת החשבון נכשלה. נסו שוב מאוחר יותר.");
     } finally {
