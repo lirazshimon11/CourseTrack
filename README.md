@@ -1,4 +1,4 @@
-# CourseTrack
+  # CourseTrack
 
 CourseTrack is an independent academic schedule tracker, originally built as a personal project for studying at HIT (Holon Institute of Technology). It now supports separate student accounts and institution-specific academic calendars.
 
